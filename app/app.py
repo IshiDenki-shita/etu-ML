@@ -281,3 +281,64 @@ if __name__ == "__main__":
     binary, proj, areas = seg.run(img=img)
 
     seg.visualize(img, binary, proj, areas)
+
+
+#------------------------------------------------------------
+#小原
+#------------------------------------------------------------
+import torch
+import Levenshtein
+import csv
+from main_CNN import HiraganaCNN  # モデル定義を読み込む
+
+class check_menue:
+    def __init__(self):
+        # -----------------------------
+        # url読み込み
+        # -----------------------------
+        self.chars_url = "c://python/develop_CNN/chars.txt"
+        self.menue_url = "c://python/develop_CNN/menue.csv"
+        self.cnn_pth_url = "c://python/develop_CNN/hiragana_cnn.pth"
+
+        # -----------------------------
+        # 学習文字読み込み
+        # -----------------------------
+        with open(self.chars_url, "r", encoding="utf-8") as f:
+            data = f.read()
+        self.idx_to_char = {i: c for i, c in enumerate(data)}
+
+        # -----------------------------
+        # モデル読み込み
+        # -----------------------------
+        self.model = HiraganaCNN()
+        self.model.load_state_dict(torch.load(self.cnn_pth_url, map_location="cpu"))
+        self.model.eval()
+
+    # -----------------------------
+    # 最も近いメニュー
+    # -----------------------------
+    def correct(self,menue, threshold=3):
+        with open(self.menue_url,encoding="utf-8") as f:
+            reader = csv.reader(f)
+            dct = []
+            for row in reader:
+                if row:
+                    dct.append(row[0])
+        best = min(dct, key=lambda x: Levenshtein.distance(menue, x))
+        dist = Levenshtein.distance(menue, best)
+        return best if dist <= threshold else menue
+
+    # -----------------------------
+    # 1文字推論
+    # -----------------------------
+    def predict_char(self,img):
+        x = torch.tensor(img).unsqueeze(0).unsqueeze(0).float()
+        out = self.model(x)
+        pred = out.argmax(1).item()
+        return self.idx_to_char[pred]
+
+    # -----------------------------
+    # 文字列推論
+    # -----------------------------
+    def predict_sentence(self,line):
+        return self.correct(line)
