@@ -6,9 +6,8 @@ info: I uploaded a doc explaining about how deal with charless area(appear later
       on our sharing drive
 """
 
-IMAGE_PATH = "sample/cells/karaage2.jpeg"
-
-import math
+import pathlib
+import os
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
@@ -24,6 +23,15 @@ class Config:
     # for partial blank detection
     THIN_NOISE_WIDTH = 3
     BLANK_AREA_LEFT = (0, 100)
+    # for regulate sizes of photos
+    PHOTO_HW = (64,64)
+
+class MLutility:
+    """
+    File operation
+    """
+    # def take_cells(self, imgs_dir):
+        
 
 
 class CharacterSegmenter:
@@ -56,7 +64,11 @@ class CharacterSegmenter:
 
         char_areas = self.merge_small_areas(char_areas)
 
-        return binary, proj_smooth, char_areas
+        chars = self.area_to_binary(binary, char_areas)
+
+        chars = self.regulate_size(chars)
+
+        return binary, proj_smooth, char_areas, chars
 
     """
     Preprocess
@@ -191,6 +203,20 @@ class CharacterSegmenter:
 
         print(f"\nremoved thin char area\n{[(int(l),int(r)) for (l,r) in result]}")
         return result
+    
+    def area_to_binary(self, binary, areas):
+        cell = []
+        for area in areas:
+            cell.append(binary[area[0]:area[1], :])
+
+        return cell
+
+    def regulate_size(photos):
+        for photo in photos:
+            len, wid = photo.shape
+            if len > wid:
+
+
 
     """
     Blank detection
@@ -268,16 +294,33 @@ class CharacterSegmenter:
 
 
 """
-Usage
+Main function
 """
 if __name__ == "__main__":
-    img = cv2.imread(IMAGE_PATH)
-
-    if img is None:
-        print("画像を取得できませんでした。")
-        exit()
-
+    paths = []
+    imgs = []
+    menus = []
     seg = CharacterSegmenter()
-    binary, proj, areas = seg.run(img=img)
+    cnn = 
+    utl = 
 
-    seg.visualize(img, binary, proj, areas)
+    for cell_path in paths:
+        img = cv2.imread(cell_path)
+
+        if img is None:
+            print("画像を取得できませんでした。")
+            exit()
+
+        binary, proj, areas, cell = seg.run(img=img)
+        # seg.visualize(img, binary, proj, areas)
+
+        cell_ans = []
+        for char in cell:
+            cell_ans.append(cnn.ohara_1char_cnn(char))
+        
+        menus.append(cell_ans)
+    
+    menus = utl.Dictionary_correcting(menus)
+
+    # making JSON
+    # sending to SaitoVPS
