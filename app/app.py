@@ -14,6 +14,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import cv2
 from scipy.signal import find_peaks
+import torch
+import Levenshtein
+import csv
+from main_CNN import HiraganaCNN  # モデル定義を読み込む
 
 
 class Config_utl:
@@ -360,98 +364,62 @@ class CharacterSegmenter:
 
         plt.show()
 
-#------------------------------------------------------------
-#小原
-#------------------------------------------------------------
-import torch
-import Levenshtein
-import csv
-from main_CNN import HiraganaCNN  # モデル定義を読み込む
 
 class check_menu:
     def __init__(self):
-        # -----------------------------
-        # url読み込み
-        # -----------------------------
-        self.chars_url = "c://python/develop_CNN/chars.txt"
-        self.menu_url = "c://python/develop_CNN/menue.csv"
-        self.cnn_pth_url = "c://python/develop_CNN/hiragana_cnn.pth"
+        self.chars_url = "/supports/chars.txt"
+        self.menu_url = "/supports/menu.csv"
+        self.cnn_pth_url = "/supports/hiragana_cnn.pth"
 
-        # -----------------------------
-        # 学習文字読み込み
-        # -----------------------------
         with open(self.chars_url, "r", encoding="utf-8") as f:
             data = f.read()
         self.idx_to_char = {i: c for i, c in enumerate(data)}
 
-        # -----------------------------
-        # # メニュー読み込み
-        # -----------------------------
         with open(self.menu_url, encoding="utf-8") as f:
             reader = csv.reader(f)
             self.menu_list = [row[0] for row in reader if row]
 
-        # -----------------------------
-        # モデル読み込み
-        # -----------------------------
         self.model = HiraganaCNN()
         self.model.load_state_dict(torch.load(self.cnn_pth_url, map_location="cpu"))
         self.model.eval()
 
-    # -----------------------------
-    # 最も近いメニュー
-    # -----------------------------
-    def correct(self,menu, threshold=3):
-        best = min(self.menue_list, key=lambda x: Levenshtein.distance(menu, x))
+    def correct(self, menu, threshold=3):
+        best = min(self.menu_list, key=lambda x: Levenshtein.distance(menu, x))
         dist = Levenshtein.distance(menu, best)
         return best if dist <= threshold else menu
 
-    # -----------------------------
-    # 1文字推論
-    # -----------------------------
-    def predict_char(self,img):
+    def predict_char(self, img):
         x = torch.tensor(img).unsqueeze(0).unsqueeze(0).float()
         out = self.model(x)
         pred = out.argmax(1).item()
         return self.idx_to_char[pred]
 
-    # -----------------------------
-    # 文字列推論
-    # -----------------------------
     def predict_sentence(self, cell):
         chars = [self.predict_char(img) for img in cell]
         line = "".join(chars)
         return self.correct(line)
 
-    
-    # -----------------------------
-    # run
-    # -----------------------------
-    def run(self,cells):
+    def run(self, cells):
         res = []
         for cell in cells:
             res.append(self.predict_sentence(cell))
         return res
-"""
-Main function
-"""
+
+
 if __name__ == "__main__":
     seg = CharacterSegmenter()
-    # cnn =
+    cnn = check_menu()
     utl = MLutility()
 
     menus = []
     imgs = utl.take_cell_imgs()
     for img in imgs:
-        binary, proj, areas, cell = seg.run(img=img)
+        _, _, _, cell = seg.run(img=img)
         # seg.visualize(img, binary, proj, areas)
 
-        cell_ans = []
-        for char in cell:
-            name = check_menu.run(char)
-            cell_ans.append((name))
+        name = cnn.predict_sentence(cell=cell)
 
-        menus.append(cell_ans)
+        menus.append(name)
 
     utl.send_menu_json_to_saito(menus=menus)
     # making JSON
