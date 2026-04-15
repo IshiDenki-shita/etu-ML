@@ -6,36 +6,41 @@ info: I uploaded a doc explaining about how deal with charless area(appear later
       on our sharing drive
 """
 
-from pathlib import Path
 import os
+from pathlib import Path
+from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 import requests
 import matplotlib.pyplot as plt
 import numpy as np
 import cv2
 from scipy.signal import find_peaks
-import torch
 import Levenshtein
 import csv
 import torch
 import torch.nn as nn
 
 
-
 class Config_utl:
     IMG_ROOT = Path("photos/")
-    Dictionary = ["唐揚げラーメン", "そぼろあんかけうどん・そば", "餃子ラーメン"]
     url_saito_cafe = "http://162.43.43.163:8080/api/v1/cafe"
 
 
+@dataclass
 class Config_seg:
     MIN_CHAR_WIDTH = 60  # for char detection
-    MAX_CHAR_WIDTH = 100
+    CHAR_WIDTH_RATIO = 0.05
     SMOOTH_KERNEL = 5
     MAX_BLANK_DENSITY = 0.03
     MIN_CHAR_DENSITY = 0.08
+    ARROW_WID_RATIO = 1 / 30
+    ARROW_AVE_SURFACE = 450
     THIN_NOISE_WIDTH = 3  # for partial blank detection
-    BLANK_AREA_LEFT = (0, 100)
+    UPPER_BLANK_RATIO = 0.5
+    LEFT_BLANK_RATIO = 0.05
+    RIGHT_BLANK_RATIO = 0.5
+    NOISE_HEIGHT = 5
+    IGNORE_WID = 10
     PHOTO_HW = (64, 64)  # for regulate sizes of photos
 
 
@@ -102,40 +107,41 @@ class MLutility:
 
 
 class CharacterSegmenter:
-    def __init__(self, config=Config_seg()):
-        self.cfg = config
+    def __init__(self, config=None, debug=None):
+        self.cfg = config or Config_seg()
+        self.debug = debug
 
     """
     Pipeline
     """
 
     def run(self, img):
+        char_areas, chars = [], []
+
         binary = self.preprocess(img)
-        proj_v, proj_h = self.compute_projection(binary)
 
-        binary = self.trim_upper_blank(binary, proj_h)
-        # binary = self.shave_left_blank(binary, proj_v)
-        # binary = self.shave_right_blank(binary, proj_h, proj_v)
+        if np.sum(binary) / binary.size < self.cfg.MIN_CHAR_DENSITY:
+            return self.check_is_arrow(binary)
+        else:
+            binary = self.trim_upper_sides_blank(binary=binary)
 
-        proj_v, _ = self.compute_projection(binary)
-        proj_smooth = self.smooth(proj_v)
+            char_areas = self.detect_char_areas(binary)
 
-        flat_areas = self.detect_flat_areas(
-            proj=proj_smooth, noise_height=20, ignore_wid=30
-        )
-        self.visualize_flat_areas(areas=flat_areas, proj=proj_smooth)
+            char_areas = self.filter_characters(binary, char_areas)
 
-        char_areas = self.detect_char_areas(proj_smooth)
+            char_areas = self.merge_small_areas(char_areas)
 
-        char_areas = self.filter_characters(binary, char_areas)
+            chars = self.area_to_binary(binary, char_areas)
 
-        char_areas = self.merge_small_areas(char_areas)
+            # chars = self.trim_under_blank(chars)
 
-        chars = self.area_to_binary(binary, char_areas)
+            chars = self.regulate_size(chars)
 
-        chars = self.regulate_size(chars)
+            self.visualize(
+                img=img, proj=self.compute_projection(binary=binary)[0], chars=chars
+            )
 
-        return binary, proj_smooth, char_areas, chars
+            return chars
 
     """
     Preprocess
@@ -144,6 +150,9 @@ class CharacterSegmenter:
     def preprocess(self, img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        kernel = np.ones((3, 3), np.uint8)
+        binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+        binary = (binary > 0).astype(np.uint8)
         return binary
 
     def compute_projection(self, binary):
@@ -156,88 +165,148 @@ class CharacterSegmenter:
         kernel = np.ones(k) / k
         return np.convolve(proj, kernel, mode="same")
 
+    def check_is_arrow(self, binary):
+        proj = self.smooth(self.compute_projection(binary=binary)[0])
+        win_half = int(len(proj) * self.cfg.ARROW_WID_RATIO)
+        definite_integrals = []
+
+        for i in range(win_half, len(proj) - win_half, 1):
+            definite_integrals.append(np.sum(proj[i - win_half : i + win_half]))
+        tops, _ = find_peaks(definite_integrals)
+        print(f"tops[0] : {tops[0]}", end=" ")
+        if tops[0] > self.cfg.ARROW_AVE_SURFACE:
+            print("arrow")
+            return 1
+        else:
+            print("No characters")
+            return 0
+
     """
     Trim
     """
 
-    def trim_upper_blank(self, binary, proj_h):
-        blanks = self.find_blank_areas(proj_h, binary.shape[1])
-        if not blanks:
-            return binary
+    def trim_upper_sides_blank(self, binary):
+        trimed = None
+        flipped_bin = cv2.rotate(binary, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
-        top_blank = max(blanks, key=lambda x: x[1] - x[0])
-        print(f"\ntrimed above {top_blank[1]}")
-        return binary[top_blank[1] :, :]
+        # upper
+        blanks_v = self.detect_blank_areas(flipped_bin)
+        print(f"blanks_v\n{blanks_v}")
+        upper_blanks = [
+            (u, b)
+            for (u, b) in blanks_v
+            if b < binary.shape[0] * self.cfg.UPPER_BLANK_RATIO
+        ]
+        widest_upper_blank = (
+            max(upper_blanks, key=lambda x: x[1] - x[0]) if upper_blanks else (0, 0)
+        )
+        trimed = binary[widest_upper_blank[1] :, :]
 
-    def shave_left_blank(self, binary, proj_v):
-        projl_v = proj_v[: self.cfg.BLANK_AREA_LEFT[1]]
-        thresholdl = np.mean(projl_v) - np.std(projl_v) * 0.3  # 0.3 works well
-        print(f"threshold {thresholdl}")
+        blanks_h = self.detect_blank_areas(binary)
+        print(f"blanks_h\n{blanks_h}\n")
+        # left
+        lefter_blanks = [
+            (l, r)
+            for (l, r) in blanks_h
+            if r < binary.shape[1] * self.cfg.LEFT_BLANK_RATIO
+        ]
+        widest_left_blank = (
+            max(lefter_blanks, key=lambda x: x[1] - x[0]) if lefter_blanks else (0, 0)
+        )
+        # right
+        righter_blanks = [
+            (l, r)
+            for (l, r) in blanks_h
+            if l > binary.shape[1] * (1 - self.cfg.LEFT_BLANK_RATIO)
+        ]
+        widest_right_blank = (
+            max(righter_blanks, key=lambda x: x[1] - x[0])
+            if righter_blanks
+            else (binary.shape[1], binary.shape[1])
+        )
 
-        print(f"projl_v:\n{projl_v}")
-
-        count = self.cfg.THIN_NOISE_WIDTH
-        for i, val in enumerate(projl_v):
-            if val > thresholdl:
-                print(f"shaved {i}")
-                count -= 1
-            if count == 0:
-                print(f"\nshaved blank lefter from {i}")
-                return binary[:, i:]
-
-        print(f"\nshaved blank lefter from {i}")
-        return binary[:, self.cfg.BLANK_AREA_LEFT[1] :]
-
-    def shave_right_blank(self, binary, proj_h, proj_v):
-        projr_v = proj_v[::-1]
-        projr_h = proj_h
-
-        return binary
+        print(
+            f"trimed outside [{widest_left_blank[1]}:{widest_right_blank[0]}] and above {widest_upper_blank[1]}\n"
+        )
+        return trimed[:, widest_left_blank[1] : widest_right_blank[0]]
 
     """
-    Detection
+    Blank detection
     """
-
-    def detect_char_areas(self, proj):
-        peaks, _ = find_peaks(proj, prominence=20, distance=self.cfg.MIN_CHAR_WIDTH)
-        bottoms, _ = find_peaks(-proj, prominence=10, distance=self.cfg.MIN_CHAR_WIDTH)
-
-        if len(peaks) < 2:
-            return [(0, len(proj))]
-
-        cuts = [b for b in bottoms]
-        cuts = [0] + cuts + [len(proj)]
-
-        areas = [(cuts[i], cuts[i + 1]) for i in range(len(cuts) - 1)]
-
-        print(f"\nlaw char areas\n{[(int(l),int(r)) for (l,r) in areas]}")
-        return areas
 
     def detect_flat_areas(self, proj, noise_height, ignore_wid):
-        areas = []
-        max, min = -float("inf"), float("inf")
+        flats = []
+        cur_max, cur_min = -float("inf"), float("inf")
         flat_width = 0
+        is_flat = False
 
         for i, val in enumerate(proj):
-            max = val if val > max else max
-            min = val if val < min else min
+            cur_max = val if val > cur_max else cur_max
+            cur_min = val if val < cur_min else cur_min
 
-            is_flat = max - min < noise_height
+            is_flat = cur_max - cur_min < noise_height
             is_long = flat_width >= ignore_wid
 
             if is_flat:
                 flat_width += 1
             elif not is_flat and is_long:
-                areas.append((i - flat_width, i))
-                max, min, flat_width = -float("inf"), float("inf"), 0
+                flats.append((i - flat_width, i))
+                cur_max, cur_min, flat_width = -float("inf"), float("inf"), 0
 
             elif not is_flat and not is_long:
-                max, min, flat_width = -float("inf"), float("inf"), 0
+                cur_max, cur_min, flat_width = -float("inf"), float("inf"), 0
 
         if is_flat:
-            areas.append((len(proj) - flat_width, len(proj)))
+            flats.append((len(proj) - flat_width, len(proj)))
 
-        print(f"\nflat areas\n{areas}")
+        return flats
+
+    def detect_blank_areas(self, binary):
+        proj, _ = self.compute_projection(binary=binary)
+        proj = self.smooth(proj=proj)
+
+        flats = self.detect_flat_areas(
+            proj=proj,
+            noise_height=self.cfg.NOISE_HEIGHT,
+            ignore_wid=self.cfg.IGNORE_WID,
+        )
+
+        print(f"falts\n{flats}")
+
+        lowest_peak = proj[sorted(find_peaks(proj)[0])[0]]
+        blank_areas = [
+            (l, r) for (l, r) in flats if np.mean(proj[l:r]) < lowest_peak / 2
+        ]
+        return blank_areas
+
+    """
+    Detection
+    """
+
+    def detect_char_areas(self, binary):
+        proj, _ = self.compute_projection(binary=binary)
+        proj = self.smooth(proj=proj)
+
+        peaks, _ = find_peaks(
+            proj,
+            prominence=np.max(proj) * 0.2,
+            distance=int(len(proj) * self.cfg.CHAR_WIDTH_RATIO),
+        )
+        bottoms, _ = find_peaks(
+            -proj,
+            prominence=np.max(proj) * 0.2,
+            distance=int(len(proj) * self.cfg.CHAR_WIDTH_RATIO),
+        )
+
+        if len(peaks) < 2:
+            return [(0, len(proj))]
+
+        cuts = [b for b in sorted(bottoms)]
+        cuts = [0] + cuts + [len(proj)]
+
+        areas = [(cuts[i], cuts[i + 1]) for i in range(len(cuts) - 1)]
+
+        print(f"raw char areas\n{[(int(l),int(r)) for (l,r) in areas]}")
         return areas
 
     """
@@ -255,7 +324,7 @@ class CharacterSegmenter:
             else:
                 merged.append((l, r))
 
-        print(f"merged char areas\n{[(int(l),int(r)) for (l,r) in merged[::-1]]}")
+        print(f"merged char areas\n{[(int(l),int(r)) for (l,r) in merged[::-1]]}\n")
         return merged[::-1]
 
     def filter_characters(self, binary, areas):
@@ -268,110 +337,136 @@ class CharacterSegmenter:
             if density > self.cfg.MIN_CHAR_DENSITY:
                 result.append((l, r))
 
-        print(f"\nremoved thin char area\n{[(int(l),int(r)) for (l,r) in result]}")
+        print(f"removed thin char area\n{[(int(l),int(r)) for (l,r) in result]}")
         return result
 
     def area_to_binary(self, binary, areas):
         cell = []
         for area in areas:
-            cell.append(binary[area[0] : area[1], :])
+            cell.append(binary[:, area[0] : area[1]])
 
         return cell
 
     def regulate_size(self, photos):
         resized = []
         for photo in photos:
-            lngth, wid = photo.shape
+            buf = photo
+            lngth, wid = buf.shape
             if lngth > wid:
-                diff = np.zeros((lngth, (lngth - wid) // 2))
-                photo = np.concatenate((diff, photo, diff), axis=1)
+                diff = np.zeros((lngth, (lngth - wid) // 2), dtype=buf.dtype)
+                buf = np.concatenate((diff, buf, diff), axis=1)
             elif lngth < wid:
-                diff = np.zeros(((wid - lngth) // 2), wid)
-                photo = np.concatenate((diff, photo, diff), axis=0)
-            resized.append(cv2.resize(photo, (64, 64)))
+                diff = np.zeros(((wid - lngth) // 2, wid), dtype=buf.dtype)
+                buf = np.concatenate((diff, buf, diff), axis=0)
+            resized.append(
+                cv2.resize(buf, self.cfg.PHOTO_HW, interpolation=cv2.INTER_NEAREST)
+            )
 
+        print(f"resized {len(resized)} characters\n")
         return resized
-
-    """
-    Blank detection
-    """
-
-    def find_blank_areas(self, proj, max_num):
-        blank_areas = []
-
-        start = None
-
-        for i, val in enumerate(proj):
-            density = val / max_num
-            is_blank = density <= self.cfg.MAX_BLANK_DENSITY
-
-            if is_blank and start is None:
-                start = i
-            elif not is_blank and start is not None:
-                blank_areas.append((start, i))
-                start = None
-
-        if start is not None:
-            blank_areas.append((start, len(proj)))
-
-        return blank_areas
 
     """
     Visualization
     """
 
-    def visualize(self, img, binary, proj, areas):
+    def visualize(self, img, proj, chars):
+        import matplotlib.pyplot as plt
         import matplotlib.gridspec as gridspec
 
-        n = len(areas)
-        fig = plt.figure(figsize=(12, 6))
-        gs = gridspec.GridSpec(3, n)
+        n = len(chars)
+        if n == 0:
+            return
 
-        # projection
+        cols = min(n, 10)
+        rows_chars = (n + cols - 1) // cols
+
+        fig = plt.figure(figsize=(12, 6 + rows_chars * 2))
+        gs = gridspec.GridSpec(2 + rows_chars, cols)
+
         ax1 = fig.add_subplot(gs[0, :])
         ax1.plot(proj)
-        for l, r in areas:
-            ax1.axvline(l, color="red")
-            ax1.axvline(r, color="green")
+        ax1.set_title("Projection")
 
-        # original
         ax2 = fig.add_subplot(gs[1, :])
         ax2.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        ax2.set_title("Original")
         ax2.axis("off")
 
-        # chars
-        for i, (l, r) in enumerate(areas):
-            ax = fig.add_subplot(gs[2, i])
-            ax.imshow(binary[:, l:r], cmap="gray")
+        for i, ch in enumerate(chars):
+            r = i // cols
+            c = i % cols
+            ax = fig.add_subplot(gs[2 + r, c])
+            ax.imshow(ch, cmap="gray")
+            ax.set_title(f"{i}")
             ax.axis("off")
 
         plt.tight_layout()
         plt.show()
 
-    def visualize_flat_areas(self, proj, areas):
-        x = list(range(len(proj)))
+    def visualize_projection_shape(self, proj):
+        import matplotlib.pyplot as plt
+        from scipy.signal import find_peaks, peak_widths
 
-        plt.figure(figsize=(10, 4))
-        plt.plot(x, proj, label="projection")
+        x = np.arange(len(proj))
 
-        # 平坦領域を塗る
-        for start, end in areas:
-            plt.axvspan(start, end, alpha=0.3)
+        peaks, peak_props = find_peaks(
+            proj,
+            prominence=np.max(proj) * 0.2,
+            distance=max(1, len(proj) // 20),
+        )
 
-        plt.xlabel("index")
-        plt.ylabel("value")
-        plt.title("Flat Area Detection")
-        plt.legend()
+        valleys, _ = find_peaks(
+            -proj,
+            prominence=np.max(proj) * 0.2,
+            distance=max(1, len(proj) // 20),
+        )
+
+        widths, width_heights, left_ips, right_ips = peak_widths(
+            proj, peaks, rel_height=0.5
+        )
+
+        plt.figure(figsize=(12, 5))
+        plt.plot(x, proj, color="black", label="projection")
+        plt.scatter(peaks, proj[peaks], color="red", label="peaks", zorder=3)
+        plt.scatter(valleys, proj[valleys], color="blue", label="valleys", zorder=3)
+
+        for i in range(len(peaks)):
+            plt.hlines(
+                y=width_heights[i],
+                xmin=left_ips[i],
+                xmax=right_ips[i],
+                color="green",
+                linestyle="--",
+            )
+
+        for i, p in enumerate(peaks):
+            base = peak_props["prominences"][i]
+            plt.vlines(
+                p,
+                proj[p] - base,
+                proj[p],
+                color="purple",
+                linestyle=":",
+            )
+
+        plt.title("Projection Shape Analysis")
+        plt.xlabel("X")
+        plt.ylabel("Projection Value")
         plt.grid()
 
+        handles, labels = plt.gca().get_legend_handles_labels()
+        unique = dict(zip(labels, handles))
+        plt.legend(unique.values(), unique.keys())
+
+        plt.tight_layout()
         plt.show()
 
 
 class check_menu:
     def __init__(self):
-        self.chars_url = "/supports/chars.txt"
-        self.menu_url = "/supports/menu.csv"
-        self.cnn_pth_url = "/supports/hiragana_cnn.pth"
+        self.chars_url = "supports/chars.txt"
+        self.menu_url = "supports/menu.csv"
+        self.cnn_pth_url = "supports/hiragana_cnn.pth"
 
         with open(self.chars_url, "r", encoding="utf-8") as f:
             data = f.read()
@@ -407,9 +502,29 @@ class check_menu:
             res.append(self.predict_sentence(cell))
         return res
 
+
 class HiraganaCNN(nn.Module):
+
+    def __init__(self):
+        self.menu_url = "supports/menu.csv"
+        self.chars = self.make_chars()
+
+        super().__init__()
+        self.model = nn.Sequential(
+            nn.Conv2d(1, 32, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+            nn.Flatten(),
+            nn.Linear(64 * 16 * 16, 128),
+            nn.ReLU(),
+            nn.Linear(128, len(self.chars)),
+        )
+
     def make_chars(self):
-        with open(self.menu_url,"r",encoding="utf-8") as f:
+        with open(self.menu_url, "r", encoding="utf-8") as f:
             reader = csv.reader(f)
             dct = []
             for row in reader:
@@ -418,29 +533,10 @@ class HiraganaCNN(nn.Module):
         chars = "".join(dict.fromkeys(s))
         return str(chars)
 
-    def write_chars_txt(self,chars):
-        f = open(self.menu_url,"w",encoding="utf-8")
+    def write_chars_txt(self, chars):
+        f = open(self.menu_url, "w", encoding="utf-8")
         f.write(chars)
         f.close()
-
-    def __init__(self):
-        self.chars = self.make_chars()
-        self.menu_url = "/supports/menu.csv"
-        super().__init__()
-        self.model = nn.Sequential(
-            nn.Conv2d(1, 32, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),
-
-            nn.Conv2d(32, 64, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),
-
-            nn.Flatten(),
-            nn.Linear(64 * 16 * 16, 128),
-            nn.ReLU(),
-            nn.Linear(128, len(self.chars))
-        )
 
     def forward(self, x):
         return self.model(x)
@@ -452,15 +548,27 @@ if __name__ == "__main__":
     utl = MLutility()
 
     menus = []
-    imgs = utl.take_cell_imgs()
-    for img in imgs:
-        _, _, _, cell = seg.run(img=img)
+    cell_imgs = utl.take_cell_imgs()
+
+    if not cell_imgs:
+        print("画像を取得できませんでした。")
+        exit()
+
+    for i, img in enumerate(cell_imgs):
+        print(f"{i + 1}番目のセル")
+        cell = seg.run(img=img)
         # seg.visualize(img, binary, proj, areas)
 
         name = cnn.predict_sentence(cell=cell)
 
-        menus.append(name)
+        if name == 1 and len(menus) >= 1:
+            menus.append(menus[i - 1])
+        elif name == 0:
+            pass
 
-    utl.send_menu_json_to_saito(menus=menus)
+        menus.append(name)
+        print(name, end="\n\n")
+
+    # utl.send_menu_json_to_saito(menus=menus)
     # making JSON
     # sending to SaitoVPS
