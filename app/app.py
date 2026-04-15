@@ -550,11 +550,18 @@ if __name__ == "__main__":
     menus = []
     cell_imgs = utl.take_cell_imgs()
 
+    for i, img in enumerate(cell_imgs):
+        print(i, type(img), img is None)
+
+
+
+
     if not cell_imgs:
         print("画像を取得できませんでした。")
         exit()
 
     for i, img in enumerate(cell_imgs):
+        print(img)
         print(f"{i + 1}番目のセル")
         cell = seg.run(img=img)
         # seg.visualize(img, binary, proj, areas)
