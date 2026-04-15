@@ -308,6 +308,13 @@ class check_menue:
         self.idx_to_char = {i: c for i, c in enumerate(data)}
 
         # -----------------------------
+        # # メニュー読み込み
+        # -----------------------------
+        with open(self.menue_url, encoding="utf-8") as f:
+            reader = csv.reader(f)
+            self.menue_list = [row[0] for row in reader if row]
+
+        # -----------------------------
         # モデル読み込み
         # -----------------------------
         self.model = HiraganaCNN()
@@ -318,13 +325,7 @@ class check_menue:
     # 最も近いメニュー
     # -----------------------------
     def correct(self,menue, threshold=3):
-        with open(self.menue_url,encoding="utf-8") as f:
-            reader = csv.reader(f)
-            dct = []
-            for row in reader:
-                if row:
-                    dct.append(row[0])
-        best = min(dct, key=lambda x: Levenshtein.distance(menue, x))
+        best = min(self.menue_list, key=lambda x: Levenshtein.distance(menue, x))
         dist = Levenshtein.distance(menue, best)
         return best if dist <= threshold else menue
 
@@ -340,5 +341,17 @@ class check_menue:
     # -----------------------------
     # 文字列推論
     # -----------------------------
-    def predict_sentence(self,line):
+    def predict_sentence(self, sel):
+        chars = [self.predict_char(img) for img in sel]
+        line = "".join(chars)
         return self.correct(line)
+
+    
+    # -----------------------------
+    # run
+    # -----------------------------
+    def run(self,menuelist):
+        res = []
+        for sel in menuelist:
+            res.append(self.predict_sentence(sel))
+        return res
