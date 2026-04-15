@@ -360,19 +360,6 @@ class CharacterSegmenter:
 
         plt.show()
 
-
-"""
-Main function
-"""
-if __name__ == "__main__":
-    seg = CharacterSegmenter()
-    # cnn =
-    utl = MLutility()
-
-<<<<<<< HEAD
-    seg.visualize(img, binary, proj, areas)
-
-
 #------------------------------------------------------------
 #小原
 #------------------------------------------------------------
@@ -381,13 +368,13 @@ import Levenshtein
 import csv
 from main_CNN import HiraganaCNN  # モデル定義を読み込む
 
-class check_menue:
+class check_menu:
     def __init__(self):
         # -----------------------------
         # url読み込み
         # -----------------------------
         self.chars_url = "c://python/develop_CNN/chars.txt"
-        self.menue_url = "c://python/develop_CNN/menue.csv"
+        self.menu_url = "c://python/develop_CNN/menue.csv"
         self.cnn_pth_url = "c://python/develop_CNN/hiragana_cnn.pth"
 
         # -----------------------------
@@ -400,9 +387,9 @@ class check_menue:
         # -----------------------------
         # # メニュー読み込み
         # -----------------------------
-        with open(self.menue_url, encoding="utf-8") as f:
+        with open(self.menu_url, encoding="utf-8") as f:
             reader = csv.reader(f)
-            self.menue_list = [row[0] for row in reader if row]
+            self.menu_list = [row[0] for row in reader if row]
 
         # -----------------------------
         # モデル読み込み
@@ -414,10 +401,10 @@ class check_menue:
     # -----------------------------
     # 最も近いメニュー
     # -----------------------------
-    def correct(self,menue, threshold=3):
-        best = min(self.menue_list, key=lambda x: Levenshtein.distance(menue, x))
-        dist = Levenshtein.distance(menue, best)
-        return best if dist <= threshold else menue
+    def correct(self,menu, threshold=3):
+        best = min(self.menue_list, key=lambda x: Levenshtein.distance(menu, x))
+        dist = Levenshtein.distance(menu, best)
+        return best if dist <= threshold else menu
 
     # -----------------------------
     # 1文字推論
@@ -431,8 +418,8 @@ class check_menue:
     # -----------------------------
     # 文字列推論
     # -----------------------------
-    def predict_sentence(self, sel):
-        chars = [self.predict_char(img) for img in sel]
+    def predict_sentence(self, cell):
+        chars = [self.predict_char(img) for img in cell]
         line = "".join(chars)
         return self.correct(line)
 
@@ -440,12 +427,19 @@ class check_menue:
     # -----------------------------
     # run
     # -----------------------------
-    def run(self,menuelist):
+    def run(self,cells):
         res = []
-        for sel in menuelist:
-            res.append(self.predict_sentence(sel))
+        for cell in cells:
+            res.append(self.predict_sentence(cell))
         return res
-=======
+"""
+Main function
+"""
+if __name__ == "__main__":
+    seg = CharacterSegmenter()
+    # cnn =
+    utl = MLutility()
+
     menus = []
     imgs = utl.take_cell_imgs()
     for img in imgs:
@@ -454,12 +448,11 @@ class check_menue:
 
         cell_ans = []
         for char in cell:
-            name, date = cnn.ohara_1char_cnn(char)
-            cell_ans.append((name, date))
+            name = check_menu.run(char)
+            cell_ans.append((name))
 
         menus.append(cell_ans)
 
     utl.send_menu_json_to_saito(menus=menus)
     # making JSON
     # sending to SaitoVPS
->>>>>>> 577e97e8e5c427605fc0f78404aad4de1016d72c
