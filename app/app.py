@@ -15,24 +15,23 @@ import numpy as np
 import cv2
 from scipy.signal import find_peaks
 
+
 class Config_utl:
     IMG_ROOT = Path("photos/")
-    Dictionary = [
-        "唐揚げラーメン",
-        "そぼろあんかけうどん・そば",
-        "餃子ラーメン"
-    ]
+    Dictionary = ["唐揚げラーメン", "そぼろあんかけうどん・そば", "餃子ラーメン"]
     url_saito_cafe = "http://162.43.43.163:8080/api/v1/cafe"
 
+
 class Config_seg:
-    MIN_CHAR_WIDTH = 60 # for char detection
+    MIN_CHAR_WIDTH = 60  # for char detection
     MAX_CHAR_WIDTH = 100
     SMOOTH_KERNEL = 5
     MAX_BLANK_DENSITY = 0.03
     MIN_CHAR_DENSITY = 0.08
-    THIN_NOISE_WIDTH = 3    # for partial blank detection
+    THIN_NOISE_WIDTH = 3  # for partial blank detection
     BLANK_AREA_LEFT = (0, 100)
-    PHOTO_HW = (64,64)  # for regulate sizes of photos
+    PHOTO_HW = (64, 64)  # for regulate sizes of photos
+
 
 class MLutility:
     def __init__(self):
@@ -41,6 +40,7 @@ class MLutility:
     """
     File operation
     """
+
     def take_cell_imgs(self):
         imgs_root = self.cfg.IMG_ROOT
         dir_receives = sorted(list(imgs_root.iterdir()))
@@ -48,26 +48,21 @@ class MLutility:
 
         imgs = []
         for i, dir_cap in enumerate(dir_caps):
-            img = cv2.imread(dir_cap) 
+            img = cv2.imread(dir_cap)
             if img is None:
-                print(f"{i + 1}番目の画像を取得できませんでした", end='\n\n')
+                print(f"{i + 1}番目の画像を取得できませんでした", end="\n\n")
             imgs.append(img)
 
-        print(f'{len(imgs)} imgs was taken')
+        print(f"{len(imgs)} imgs was taken")
         return imgs
-    
+
     """
     Send JSON
     """
-    def making_menu_dict(self, menus: list):
-        mail = {
-            "generated_at": self.now_jst_iso8601_seconds,
-            "menus":menus,
-        }
-        return mail
 
-    def send_menu_json(self, menu_dict: dict) -> None:
-        res = requests.post(self.cfg.url_saito_cafe, json=menu_dict)
+    def send_menu_json_to_saito(self, menus: list[tuple]) -> None:
+        cafe_dict = self.format_mail_dict(menus=menus)
+        res = requests.post(self.cfg.url_saito_cafe, json=cafe_dict)
 
         print("\nステータスコード\n")
         print(res.status_code)
@@ -75,9 +70,18 @@ class MLutility:
         print("\nレスポンス本文\n")
         print(res.text)
 
+    def format_mail_dict(self, menus: list[tuple]):
+        formatted_menus = []
+        for menu in menus:
+            formatted_menus.append({"name": menu[0], "date": menu[1], "price": 500})
+        mail = {
+            "generated_at": self.now_jst_iso8601_seconds(),
+            "menus": formatted_menus,
+        }
+        return mail
 
     # 斎藤VPSに送るJSONのgenerated_atの日付のフォーマットを固定する。
-    def now_jst_iso8601_seconds() -> str:
+    def now_jst_iso8601_seconds(self) -> str:
         """
         斎藤VPS指定フォーマット:
         2024-12-02T14:30:00+09:00
@@ -260,11 +264,11 @@ class CharacterSegmenter:
 
         print(f"\nremoved thin char area\n{[(int(l),int(r)) for (l,r) in result]}")
         return result
-    
+
     def area_to_binary(self, binary, areas):
         cell = []
         for area in areas:
-            cell.append(binary[area[0]:area[1], :])
+            cell.append(binary[area[0] : area[1], :])
 
         return cell
 
@@ -281,7 +285,7 @@ class CharacterSegmenter:
             resized.append(cv2.resize(photo, (64, 64)))
 
         return resized
-    
+
     """
     Blank detection
     """
@@ -362,7 +366,7 @@ Main function
 """
 if __name__ == "__main__":
     seg = CharacterSegmenter()
-    # cnn = 
+    # cnn =
     utl = MLutility()
 
     menus = []
@@ -373,10 +377,11 @@ if __name__ == "__main__":
 
         cell_ans = []
         for char in cell:
-            cell_ans.append(cnn.ohara_1char_cnn(char))
-        
+            name, date = cnn.ohara_1char_cnn(char)
+            cell_ans.append((name, date))
+
         menus.append(cell_ans)
 
-
+    utl.send_menu_json_to_saito(menus=menus)
     # making JSON
     # sending to SaitoVPS
