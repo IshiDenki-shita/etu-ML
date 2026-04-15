@@ -17,7 +17,9 @@ from scipy.signal import find_peaks
 import torch
 import Levenshtein
 import csv
-from main_CNN import HiraganaCNN  # モデル定義を読み込む
+import torch
+import torch.nn as nn
+
 
 
 class Config_utl:
@@ -404,6 +406,44 @@ class check_menu:
         for cell in cells:
             res.append(self.predict_sentence(cell))
         return res
+
+class HiraganaCNN(nn.Module):
+    def make_chars(self):
+        with open(self.menu_url,"r",encoding="utf-8") as f:
+            reader = csv.reader(f)
+            dct = []
+            for row in reader:
+                dct.append("".join(row))
+        s = "".join(dct)
+        chars = "".join(dict.fromkeys(s))
+        return str(chars)
+
+    def write_chars_txt(self,chars):
+        f = open(self.menu_url,"w",encoding="utf-8")
+        f.write(chars)
+        f.close()
+
+    def __init__(self):
+        self.chars = self.make_chars()
+        self.menu_url = "/supports/menu.csv"
+        super().__init__()
+        self.model = nn.Sequential(
+            nn.Conv2d(1, 32, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+
+            nn.Flatten(),
+            nn.Linear(64 * 16 * 16, 128),
+            nn.ReLU(),
+            nn.Linear(128, len(self.chars))
+        )
+
+    def forward(self, x):
+        return self.model(x)
 
 
 if __name__ == "__main__":
