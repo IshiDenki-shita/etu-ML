@@ -385,7 +385,7 @@ class check_menu:
         self.model.load_state_dict(torch.load(self.cnn_pth_url, map_location="cpu"))
         self.model.eval()
 
-    def correct(self, menu, threshold=3):
+    def correct(self, menu, threshold=10):
         best = min(self.menu_list, key=lambda x: Levenshtein.distance(menu, x))
         dist = Levenshtein.distance(menu, best)
         return best if dist <= threshold else menu
