@@ -54,11 +54,11 @@ class MLutility:
 
     def take_cell_imgs(self):
         imgs_root = self.cfg.IMG_ROOT
-        dir_receives = sorted(list(imgs_root.iterdir()))
-        dir_caps = sorted(list(dir_receives[-1].iterdir()))
-
+        dir_receives = sorted(list(imgs_root.iterdir()))[-1]
+        img_dirs = sorted(list(dir_receives.iterdir()))
+        
         imgs = []
-        for i, dir_cap in enumerate(dir_caps):
+        for i, dir_cap in enumerate(img_dirs):
             img = cv2.imread(dir_cap)
             if img is None:
                 print(f"{i + 1}番目の画像を取得できませんでした", end="\n\n")

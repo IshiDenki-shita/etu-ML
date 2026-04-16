@@ -13,7 +13,7 @@ import random
 # -----------------------------
 chars_url = "supports/chars.txt"
 menu_url = "supports/menu.csv"
-FONT_PATH = "C:/Windows/Fonts/meiryob.ttc"
+FONT_PATH = "C:/Windows/Fonts/HGRPP1.TTC"
 def make_chars():
     with open(menu_url,"r",encoding="utf-8") as f:
         reader = csv.reader(f)
@@ -45,7 +45,7 @@ def generate_handwritten(ch):
 
     # ランダム位置
     x = random.randint(0, 5)
-    y = random.randint(0, 10)
+    y = random.randint(0, 5)
 
     draw.text((x, y), ch, font=font, fill=0)
 
@@ -53,7 +53,7 @@ def generate_handwritten(ch):
     img = img.filter(ImageFilter.GaussianBlur(random.uniform(0, 1.5)))
 
     # 傾き
-    angle = random.uniform(-10, 10)
+    angle = random.uniform(-5, 5)
     img = img.rotate(angle, fillcolor=255)
 
     #ぼかし処理
@@ -67,7 +67,7 @@ def generate_handwritten(ch):
     return np.array(img) /255.0
 
 if __name__ in "__main__":
-    img_array = generate_handwritten("噌") * 255.0
+    img_array = generate_handwritten("う") * 255.0
     img = Image.fromarray(np.uint8(img_array))
     img.show()
 
