@@ -19,6 +19,9 @@ import Levenshtein
 import csv
 import torch
 import torch.nn as nn
+import json
+from PIL import Image
+import random
 
 
 class Config_utl:
@@ -486,6 +489,14 @@ class check_menu:
         return best if dist <= threshold else menu
 
     def predict_char(self, img):
+
+        if isinstance(img, Image.Image):
+            img = img.convert("L").resize((64, 64))
+            img = np.array(img)/255.0
+        
+        #img = self.add_mosaic(img, 4, 12)
+        #img = self.add_noise(img)
+
         x = torch.tensor(img).unsqueeze(0).unsqueeze(0).float()
         out = self.model(x)
         pred = out.argmax(1).item()
@@ -495,6 +506,28 @@ class check_menu:
         chars = [self.predict_char(img) for img in cell]
         line = "".join(chars)
         return self.correct(line)
+    
+    def add_noise(self, img):
+        noise = np.random.normal(0, 0.05, img.shape)  # 平均0, 標準偏差0.05
+        img = img + noise
+        img = np.clip(img, 0, 1)
+        return img
+    
+    def add_mosaic(self, img, min_size=4, max_size=12):
+        # img: numpy (64,64) or PIL Image
+        if isinstance(img, np.ndarray):
+            pil = Image.fromarray((img * 255).astype(np.uint8))
+        else:
+            pil = img
+
+        # ランダムな縮小サイズ（モザイクの粗さ）
+        mosaic_size = random.randint(min_size, max_size)
+
+        # 縮小 → 拡大
+        small = pil.resize((mosaic_size, mosaic_size), Image.NEAREST)
+        mosaic = small.resize((64, 64), Image.NEAREST)
+
+        return np.array(mosaic) / 255.0
 
     def run(self, cells):
         res = []
@@ -513,30 +546,29 @@ class HiraganaCNN(nn.Module):
         self.model = nn.Sequential(
             nn.Conv2d(1, 32, 3, padding=1),
             nn.ReLU(),
+            nn.Conv2d(32, 32, 3, padding=1),
+            nn.ReLU(),
             nn.MaxPool2d(2, 2),
+
             nn.Conv2d(32, 64, 3, padding=1),
             nn.ReLU(),
-            nn.MaxPool2d(2, 2),
-            nn.Flatten(),
-            nn.Linear(64 * 16 * 16, 128),
+            nn.Conv2d(64, 64, 3, padding=1),
             nn.ReLU(),
-            nn.Linear(128, len(self.chars)),
+            nn.MaxPool2d(2, 2),
+
+            nn.Flatten(),
+            nn.Linear(64 * 16 * 16, 256),
+            nn.ReLU(),
+            nn.Linear(256, len(self.chars)),
         )
 
     def make_chars(self):
-        with open(self.menu_url, "r", encoding="utf-8") as f:
-            reader = csv.reader(f)
-            dct = []
-            for row in reader:
-                dct.append("".join(row))
-        s = "".join(dct)
-        chars = "".join(dict.fromkeys(s))
-        return str(chars)
-
-    def write_chars_txt(self, chars):
-        f = open(self.menu_url, "w", encoding="utf-8")
-        f.write(chars)
-        f.close()
+        self.chars = ""
+        with open('learning/dataset/labels.json', encoding="utf-8") as f:
+            self.labels = json.load(f)
+            for n in range(len(self.labels)):
+                self.chars += self.labels[str(n)]
+        return self.chars
 
     def forward(self, x):
         return self.model(x)
@@ -553,15 +585,11 @@ if __name__ == "__main__":
     for i, img in enumerate(cell_imgs):
         print(i, type(img), img is None)
 
-
-
-
     if not cell_imgs:
         print("画像を取得できませんでした。")
         exit()
 
     for i, img in enumerate(cell_imgs):
-        print(img)
         print(f"{i + 1}番目のセル")
         cell = seg.run(img=img)
         # seg.visualize(img, binary, proj, areas)
@@ -575,6 +603,7 @@ if __name__ == "__main__":
 
         menus.append(name)
         print(name, end="\n\n")
+    print(menus)
 
     # utl.send_menu_json_to_saito(menus=menus)
     # making JSON
