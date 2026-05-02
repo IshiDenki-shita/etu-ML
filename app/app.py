@@ -467,13 +467,12 @@ class CharacterSegmenter:
 
 class check_menu:
     def __init__(self):
-        self.chars_url = "supports/chars.txt"
+        self.chars_dict_url = "supports/chars_dict.json"
         self.menu_url = "supports/menu.csv"
         self.cnn_pth_url = "supports/hiragana_cnn.pth"
 
-        with open(self.chars_url, "r", encoding="utf-8") as f:
-            data = f.read()
-        self.idx_to_char = {i: c for i, c in enumerate(data)}
+        with open(self.chars_dict_url, "r", encoding="utf-8") as f:
+            self.idx_to_char = json.load(f)
 
         with open(self.menu_url, encoding="utf-8") as f:
             reader = csv.reader(f)
