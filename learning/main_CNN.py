@@ -11,7 +11,7 @@ import json
 # -----------------------------
 # char_to_idx, idx_to_char
 # -----------------------------
-class dictionary():
+class dictionary:
     def __init__(self):
         self.etl_url_list = ["ETL8B2C1_unpack",
                              "ETL8B2C2_unpack",
@@ -97,7 +97,7 @@ class HiraganaCNN(nn.Module):
 # -----------------------------
 # 学習関数
 # -----------------------------
-class train():
+class train:
     def __init__(self):
         self.idx_to_char = dictionary().make_dict()
         self.num_classes = len(self.idx_to_char)

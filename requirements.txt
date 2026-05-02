@@ -1,6 +1,0 @@
-requests
-matplotlib
-opencv-python
-scipy
-torch
-Levenshtein
