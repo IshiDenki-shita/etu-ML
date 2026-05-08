@@ -69,6 +69,7 @@ class CharacterSegmenter:
         _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
         kernel = np.ones((3, 3), np.uint8)
         binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+        binary: np.ndarray  # this type hint is need to go through next comparing
         binary = (binary > 0).astype(np.uint8)
         return binary
 

@@ -14,8 +14,10 @@ import random
 chars_url = "supports/chars.txt"
 menu_url = "supports/menu.csv"
 FONT_PATH = "C:/Windows/Fonts/HGRPP1.TTC"
+
+
 def make_chars():
-    with open(menu_url,"r",encoding="utf-8") as f:
+    with open(menu_url, "r", encoding="utf-8") as f:
         reader = csv.reader(f)
         dct = []
         for row in reader:
@@ -24,10 +26,12 @@ def make_chars():
     chars = "".join(dict.fromkeys(s))
     return str(chars)
 
+
 def write_chars_txt(chars):
-    f = open(chars_url,"w",encoding="utf-8")
+    f = open(chars_url, "w", encoding="utf-8")
     f.write(chars)
     f.close()
+
 
 chars = make_chars()
 write_chars_txt(chars=chars)
@@ -38,10 +42,13 @@ idx_to_char = {i: c for i, c in enumerate(chars)}
 # 手書き風ひらがな画像を作る
 # -----------------------------
 
+
 def generate_handwritten(ch):
-    img = Image.new("L", (64, 64), 255) # 64*64の画像　背景を255(白)で塗る
-    draw = ImageDraw.Draw(img) # imgに文字を書けるようにする
-    font = ImageFont.truetype(FONT_PATH, random.randint(40, 60)) # meiryobでサイズが40~60
+    img = Image.new("L", (64, 64), 255)  # 64*64の画像　背景を255(白)で塗る
+    draw = ImageDraw.Draw(img)  # imgに文字を書けるようにする
+    font = ImageFont.truetype(
+        FONT_PATH, random.randint(40, 60)
+    )  # meiryobでサイズが40~60
 
     # ランダム位置
     x = random.randint(0, 5)
@@ -56,20 +63,21 @@ def generate_handwritten(ch):
     angle = random.uniform(-5, 5)
     img = img.rotate(angle, fillcolor=255)
 
-    #ぼかし処理
+    # ぼかし処理
     intensity = 3
     small = img.resize((round(img.width / intensity), round(img.height / intensity)))
-    img = small.resize((img.width,img.height),
-                       resample=Image.Resampling.BILINEAR)
-    
-    #CNN用に64*64に縮小
-    #img = img.resize((64, 64), resample=Image.Resampling.BILINEAR)
-    return np.array(img) /255.0
+    img = small.resize((img.width, img.height), resample=Image.Resampling.BILINEAR)
+
+    # CNN用に64*64に縮小
+    # img = img.resize((64, 64), resample=Image.Resampling.BILINEAR)
+    return np.array(img) / 255.0
+
 
 if __name__ in "__main__":
     img_array = generate_handwritten("う") * 255.0
     img = Image.fromarray(np.uint8(img_array))
     img.show()
+
 
 # -----------------------------
 # Dataset
@@ -92,6 +100,7 @@ class HiraganaDataset(Dataset):
         y = torch.tensor(self.labels[idx]).long()
         return x, y
 
+
 # -----------------------------
 # CNNモデル
 # -----------------------------
@@ -102,19 +111,18 @@ class HiraganaCNN(nn.Module):
             nn.Conv2d(1, 32, 3, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
-
             nn.Conv2d(32, 64, 3, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
-
             nn.Flatten(),
             nn.Linear(64 * 16 * 16, 128),
             nn.ReLU(),
-            nn.Linear(128, len(chars))
+            nn.Linear(128, len(chars)),
         )
 
     def forward(self, x):
         return self.model(x)
+
 
 # -----------------------------
 # 学習関数
@@ -142,6 +150,7 @@ def train_model(epochs=5, size=4500):
 
     print("学習完了！")
     return model
+
 
 if __name__ == "__main__":
     img_array = generate_handwritten("噌") * 255.0

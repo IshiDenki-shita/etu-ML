@@ -1,4 +1,8 @@
-.venv/
-photos/IDK
 .DS_Store
 __pycache__
+.venv/
+
+photos/menu_sample
+photos/catched/
+photos/cells/
+photos/chars/
