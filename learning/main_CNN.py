@@ -8,6 +8,7 @@ import numpy as np
 import glob
 import json
 
+
 # -----------------------------
 # char_to_idx, idx_to_char
 # -----------------------------
@@ -18,6 +19,7 @@ class dictionary:
                              "ETL8B2C3_unpack"]
     def make_dict(self):
         idx_to_char = {}
+
         csv_idx = 0
         for etl_url in self.etl_url_list:
             csv_url = "learning/dataset/" + etl_url + "/meta.csv"
@@ -59,20 +61,28 @@ class ETL_Dataset(Dataset):
 
     def __getitem__(self, idx):
         file = self.files[idx]
-        img = Image.open(file).resize((64, 64)).convert("L")
-        img = np.array(img) / 255.0
-        x = torch.tensor(img).unsqueeze(0).float()
+        try:
+            img = Image.open(file).resize((64, 64)).convert("L")
+        except Exception as e:
+            print(f"[WARN] 壊れた画像をスキップ: {file}")
+            # 真っ黒画像で代用（学習は継続できる）
+            img = Image.fromarray(np.zeros((64, 64), dtype=np.uint8))
+
+        img = np.array(img, dtype=np.float32) / 255.0
+        x = torch.tensor(img).unsqueeze(0)
         y = torch.tensor(self.labels[idx]).long()
+
         return x, y
+
 
 
 # -----------------------------
 # CNNモデル
 # -----------------------------
 class HiraganaCNN(nn.Module):
-    def __init__(self, num_crasses):
+    def __init__(self, num_classes):
         super().__init__()
-        self.model = nn.Sequential(
+        self.features = nn.Sequential(
             nn.Conv2d(1, 32, 3, padding=1),
             nn.ReLU(),
             nn.Conv2d(32, 32, 3, padding=1),
@@ -84,15 +94,24 @@ class HiraganaCNN(nn.Module):
             nn.Conv2d(64, 64, 3, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
-
-            nn.Flatten(),
-            nn.Linear(64 * 16 * 16, 256),
-            nn.ReLU(),
-            nn.Linear(256, num_crasses),
         )
 
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(16384, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Linear(256, num_classes),
+        )
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight)
+
     def forward(self, x):
-        return self.model(x)
+        x = self.features(x)
+        x = self.classifier(x)
+        return x
 
 # -----------------------------
 # 学習関数
@@ -103,22 +122,32 @@ class train:
         self.num_classes = len(self.idx_to_char)
         print("クラス数:", self.num_classes)
 
+        # GPU / CPU 自動判定
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print("Using device:", self.device)
+
         self.dataset = ETL_Dataset()
-        self.loader = DataLoader(self.dataset, batch_size=32, shuffle=True, num_workers=4)
+        self.loader = DataLoader(self.dataset, batch_size=128, shuffle=True, num_workers=2, pin_memory=True)
 
-        self.model = HiraganaCNN(num_crasses=self.num_classes)
+        self.model = HiraganaCNN(num_classes=self.num_classes).to(self.device)
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.0005)
 
-    def train_model(self,epochs=5):
+    def train_model(self,epochs=30):
         print("学習開始…")
+
         for epoch in range(epochs):
             total_loss = 0
             for x, y in self.loader:
+                # GPU に送る
+                x = x.to(self.device, non_blocking=True)
+                y = y.to(self.device, non_blocking=True)
+
                 self.optimizer.zero_grad()
                 out = self.model(x)
                 loss = self.criterion(out, y)
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=5.0)
                 self.optimizer.step()
                 total_loss += loss.item()
 

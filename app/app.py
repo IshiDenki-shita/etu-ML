@@ -492,10 +492,6 @@ class check_menu:
         if isinstance(img, Image.Image):
             img = img.convert("L").resize((64, 64))
             img = np.array(img)/255.0
-        
-        #img = self.add_mosaic(img, 4, 12)
-        #img = self.add_noise(img)
-
         x = torch.tensor(img).unsqueeze(0).unsqueeze(0).float()
         out = self.model(x)
         pred = out.argmax(1).item()
@@ -505,28 +501,6 @@ class check_menu:
         chars = [self.predict_char(img) for img in cell]
         line = "".join(chars)
         return self.correct(line)
-    
-    def add_noise(self, img):
-        noise = np.random.normal(0, 0.05, img.shape)  # 平均0, 標準偏差0.05
-        img = img + noise
-        img = np.clip(img, 0, 1)
-        return img
-    
-    def add_mosaic(self, img, min_size=4, max_size=12):
-        # img: numpy (64,64) or PIL Image
-        if isinstance(img, np.ndarray):
-            pil = Image.fromarray((img * 255).astype(np.uint8))
-        else:
-            pil = img
-
-        # ランダムな縮小サイズ（モザイクの粗さ）
-        mosaic_size = random.randint(min_size, max_size)
-
-        # 縮小 → 拡大
-        small = pil.resize((mosaic_size, mosaic_size), Image.NEAREST)
-        mosaic = small.resize((64, 64), Image.NEAREST)
-
-        return np.array(mosaic) / 255.0
 
     def run(self, cells):
         res = []
@@ -536,13 +510,9 @@ class check_menu:
 
 
 class HiraganaCNN(nn.Module):
-
-    def __init__(self):
-        self.menu_url = "supports/menu.csv"
-        self.chars = self.make_chars()
-
+    def __init__(self, num_classes):
         super().__init__()
-        self.model = nn.Sequential(
+        self.features = nn.Sequential(
             nn.Conv2d(1, 32, 3, padding=1),
             nn.ReLU(),
             nn.Conv2d(32, 32, 3, padding=1),
@@ -554,23 +524,24 @@ class HiraganaCNN(nn.Module):
             nn.Conv2d(64, 64, 3, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
-
-            nn.Flatten(),
-            nn.Linear(64 * 16 * 16, 256),
-            nn.ReLU(),
-            nn.Linear(256, len(self.chars)),
         )
 
-    def make_chars(self):
-        self.chars = ""
-        with open('learning/dataset/labels.json', encoding="utf-8") as f:
-            self.labels = json.load(f)
-            for n in range(len(self.labels)):
-                self.chars += self.labels[str(n)]
-        return self.chars
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(16384, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Linear(256, num_classes),
+        )
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight)
 
     def forward(self, x):
-        return self.model(x)
+        x = self.features(x)
+        x = self.classifier(x)
+        return x
 
 
 if __name__ == "__main__":
