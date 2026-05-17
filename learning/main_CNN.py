@@ -2,163 +2,137 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-import csv
-from PIL import Image
 import numpy as np
-import glob
 import json
+import os
 
-
-# -----------------------------
-# char_to_idx, idx_to_char
-# -----------------------------
-class dictionary:
-    def __init__(self):
-        self.etl_url_list = ["ETL8B2C1_unpack",
-                             "ETL8B2C2_unpack",
-                             "ETL8B2C3_unpack"]
-    def make_dict(self):
-        idx_to_char = {}
-
-        csv_idx = 0
-        for etl_url in self.etl_url_list:
-            csv_url = "learning/dataset/" + etl_url + "/meta.csv"
-
-            with open(csv_url, encoding="utf-8") as f:
-                reader = csv.reader(f)
-                next(reader)  # ヘッダーをスキップ
-                rows = list(reader)
-
-                for i in range(0, len(rows), 160):
-                    row = rows[i]
-                    char = row[1]
-                    idx_to_char[int(csv_idx / 160)] = char
-                    csv_idx += 160
-        
-        with open("supports/chars_dict.json", "w", encoding="utf-8") as f:
-            json.dump(idx_to_char, f, ensure_ascii=False, indent=1)
-
-        return idx_to_char
-
-# -----------------------------
-# Dataset
-# -----------------------------
-class ETL_Dataset(Dataset):
-    def __init__(self):
-        self.files = []
-        self.labels = []
-        current_idx = 0
-        etl_url_list = dictionary().etl_url_list
-        for etl_url in etl_url_list:
-            img_url = "learning/dataset/" + etl_url + "/*.png"
-            for file in sorted(glob.glob(img_url)):
-                self.files.append(file)
-                self.labels.append(int(current_idx / 160))
-                current_idx += 1
+# =============================
+# Dataset（最速版）
+# =============================
+class ETLDataset(Dataset):
+    def __init__(self, img_path, label_path):
+        self.images = np.load(img_path, mmap_mode="r")   # uint8 (N,1,64,64)
+        self.labels = np.load(label_path, mmap_mode="r") # int32 (N,)
 
     def __len__(self):
-        return len(self.files)
+        return len(self.images)
 
     def __getitem__(self, idx):
-        file = self.files[idx]
-        try:
-            img = Image.open(file).resize((64, 64)).convert("L")
-        except Exception as e:
-            print(f"[WARN] 壊れた画像をスキップ: {file}")
-            # 真っ黒画像で代用（学習は継続できる）
-            img = Image.fromarray(np.zeros((64, 64), dtype=np.uint8))
-
-        img = np.array(img, dtype=np.float32) / 255.0
-        x = torch.tensor(img).unsqueeze(0)
-        y = torch.tensor(self.labels[idx]).long()
-
+        # uint8 → float32 に変換（最速）
+        x = torch.tensor(self.images[idx], dtype=torch.float32) / 255.0
+        y = torch.tensor(self.labels[idx], dtype=torch.long)
         return x, y
 
 
-
-# -----------------------------
-# CNNモデル
-# -----------------------------
+# =============================
+# CNN（軽量・高速）
+# =============================
 class HiraganaCNN(nn.Module):
     def __init__(self, num_classes):
         super().__init__()
-        self.features = nn.Sequential(
+        self.model = nn.Sequential(
             nn.Conv2d(1, 32, 3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(32, 32, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),
+            nn.MaxPool2d(2),  # 32×32
 
             nn.Conv2d(32, 64, 3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(64, 64, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),
-        )
+            nn.MaxPool2d(2),  # 16×16
 
-        self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(16384, 256),
-            nn.BatchNorm1d(256),
+            nn.Linear(64 * 16 * 16, 256),
             nn.ReLU(),
             nn.Linear(256, num_classes),
         )
 
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-
     def forward(self, x):
-        x = self.features(x)
-        x = self.classifier(x)
-        return x
+        return self.model(x)
 
-# -----------------------------
-# 学習関数
-# -----------------------------
-class train:
-    def __init__(self):
-        self.idx_to_char = dictionary().make_dict()
-        self.num_classes = len(self.idx_to_char)
-        print("クラス数:", self.num_classes)
 
-        # GPU / CPU 自動判定
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print("Using device:", self.device)
+# =============================
+# 学習ループ
+# =============================
+def train_one_epoch(model, loader, criterion, optimizer, device):
+    model.train()
+    total_loss = 0
 
-        self.dataset = ETL_Dataset()
-        self.loader = DataLoader(self.dataset, batch_size=128, shuffle=True, num_workers=2, pin_memory=True)
+    for x, y in loader:
+        x, y = x.to(device), y.to(device)
 
-        self.model = HiraganaCNN(num_classes=self.num_classes).to(self.device)
-        self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.0005)
+        optimizer.zero_grad()
+        out = model(x)
+        loss = criterion(out, y)
+        loss.backward()
+        optimizer.step()
 
-    def train_model(self,epochs=30):
-        print("学習開始…")
+        total_loss += loss.item()
 
-        for epoch in range(epochs):
-            total_loss = 0
-            for x, y in self.loader:
-                # GPU に送る
-                x = x.to(self.device, non_blocking=True)
-                y = y.to(self.device, non_blocking=True)
+    return total_loss
 
-                self.optimizer.zero_grad()
-                out = self.model(x)
-                loss = self.criterion(out, y)
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=5.0)
-                self.optimizer.step()
-                total_loss += loss.item()
 
-            print(f"Epoch {epoch+1}/{epochs}  Loss: {total_loss:.2f}")
+# =============================
+# 評価
+# =============================
+def evaluate(model, loader, device):
+    model.eval()
+    correct = 0
+    total = 0
 
-        print("学習完了！")
-    
-    def run(self):
-        self.train_model()
-        torch.save(self.model.state_dict(), "supports/hiragana_cnn.pth")
-        print("モデルを保存しました")
+    with torch.no_grad():
+        for x, y in loader:
+            x, y = x.to(device), y.to(device)
+            out = model(x)
+            pred = torch.argmax(out, dim=1)
+
+            correct += (pred == y).sum().item()
+            total += y.size(0)
+
+    return correct / total
+
+
+# =============================
+# メイン処理
+# =============================
+def main(epochs=10, batch_size=128):
+    img_path = "learning/dataset/etl_images.npy"
+    label_path = "learning/dataset/etl_labels.npy"
+
+    # Dataset
+    dataset = ETLDataset(img_path, label_path)
+
+    # 8:2 に分割
+    train_size = int(len(dataset) * 0.8)
+    test_size = len(dataset) - train_size
+    train_set, test_set = torch.utils.data.random_split(dataset, [train_size, test_size])
+
+    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=2)
+    test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=2)
+
+    # クラス数
+    num_classes = len(np.unique(dataset.labels))
+
+    # デバイス
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Using:", device)
+
+    # モデル
+    model = HiraganaCNN(num_classes).to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+    # 学習
+    for epoch in range(epochs):
+        loss = train_one_epoch(model, train_loader, criterion, optimizer, device)
+        acc = evaluate(model, test_loader, device)
+
+        print(f"Epoch {epoch+1}/{epochs}")
+        print(f"  Loss: {loss:.2f}")
+        print(f"  Test Accuracy: {acc:.4f}")
+
+    # 保存
+    torch.save(model.state_dict(), "supports/hiragana_cnn_fast.pth")
+    print("モデル保存完了")
+
 
 if __name__ == "__main__":
-    train().run()
+    main()
