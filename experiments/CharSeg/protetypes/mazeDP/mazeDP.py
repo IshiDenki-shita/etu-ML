@@ -42,9 +42,9 @@ class CharacterSegmenter:
         bones_map = self.bones_of_chars(dist_map=dist_map)
 
         # bottom of valley
-        vector_map = self.vector_map_nearest(opened)
+        grad_map = self.grad_map_nearest(opened)
         valley_points_map = self.judge_valley_point_nearest(
-            binary=opened, vector=vector_map, min_theta=np.deg2rad(105)
+            binary=opened, vector=grad_map, min_theta=np.deg2rad(105)
         )
 
         self.visualize_valley_line(
@@ -141,7 +141,7 @@ class CharacterSegmenter:
         else:
             return False
 
-    def vector_map_nearest(self, binary: np.ndarray):
+    def grad_map_nearest(self, binary: np.ndarray):
         if binary is None:
             raise ValueError("最近傍ベクトル計算時にバイナリがNoneです。")
         binary = binary > 0

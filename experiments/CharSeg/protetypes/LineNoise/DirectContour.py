@@ -16,7 +16,10 @@ class CNRConfig:
     # contour vector
     cont_nighr_len: int = 2
     max_theta_thresh: np.float16 = np.pi / np.float16(180)
-    min_length_thresh: np.float16 = np.float16(10)
+    # picking vectors
+    min_length_thresh: np.float16 = np.float16(5)
+    target_theta: np.float16 = np.float16(0 * np.pi / 180)
+    target_theta_tolerance: np.float16 = np.float16(1 * np.pi / 180)
 
 
 class ContourNoiseRemover:
@@ -34,7 +37,9 @@ class ContourNoiseRemover:
 
         direct_lines = self.detect_direct_line(cont_vecs=cont_vecs, contours=contours)
 
-        direct_lines = self.pick_needed_line(direct_lines=direct_lines, horizontal=True)
+        direct_lines = self.pick_needed_line(
+            direct_lines=direct_lines, target_theta=self.cfg.target_theta
+        )
 
         line_map = self.draw_staraight_line(binary=binary, straight_lines=direct_lines)
 
@@ -233,28 +238,27 @@ class ContourNoiseRemover:
 
         return np.array(theta_diffs)
 
-    def pick_needed_line(self, direct_lines, horizontal: bool = True):
+    def pick_needed_line(self, direct_lines, target_theta: np.float16):
         needed_lines = []
         for direct_line in direct_lines:
 
             if len(direct_line) < self.cfg.min_length_thresh:
                 continue
 
-            sx, sy = direct_line[0]
-            fx, fy = direct_line[-1]
+            ny, nx = np.sin(target_theta), np.cos(target_theta)
 
-            if horizontal:
-                dot = fx - sx  # dot = vx*1 + vy*0
-            else:
-                dot = fy - sy  # dot = vx*1 + vy*0
+            sy, sx = direct_line[0]
+            fy, fx = direct_line[-1]
 
-            norm = np.hypot(fx - sx, sy - fy)
+            dot = (fx - sx) * nx + (fy - sy) * ny
+            norm = np.hypot(fx - sx, fy - sy)
 
             if norm == 0:
                 continue
 
             cos = dot / norm
-            if abs(cos) >= np.cos(np.pi / np.float16(120)):
+
+            if abs(cos) >= np.cos(self.cfg.target_theta_tolerance):
                 needed_lines.append(direct_line)
 
         print(
@@ -292,7 +296,7 @@ class ContourNoiseRemover:
                 cos = dotp / norm
                 cos = np.clip(cos, -1.0, 1.0)
 
-                if abs(cos) > np.cos(self.cfg.max_theta_thresh):
+                if abs(cos) > np.cos(self.cfg.target_line_theta_tolerance):
                     x, y = contours[i][j % len(contours[i])][0]
                     filtered_map[y, x] = 1
 
