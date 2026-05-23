@@ -1,24 +1,39 @@
+# python -m experiments.CharSeg.protetypes.border_line.raise_candidates
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Tuple
 
-from tqdm import tqdm
-import matplotlib.pyplot as plt
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy
+from tqdm import tqdm
+
+from experiments.CharSeg.protetypes.LineNoise.DirectContour import (
+    ContourNoiseRemover,
+    CNRConfig,
+)
 
 
 @dataclass(frozen=True)
 class CharacterSegmentationConfig:
     # input / output
-    input_image_path: Path = Path("photos/sample/cells/toriten.jpeg")
+    input_image_path: Path = Path("photos/sample/cells/ebiten.jpeg")
     output_dir: Path = Path("experiments/CharSeg/outputs")
-    # make gradient map
-    grad_kernel_size = 1  # maybe this can be only 1
+
     # image processing
-    binary_threshold: int = 0
     resize_width: int = 1280
+    binary_threshold: int = 0
+
+    # valley detection
+    min_valley_theta_deg: float = 105.0
+
+    # line remove
+    line_theta_deg: float = 0.0
+    line_theta_tolerance_deg: float = 5.0
+    line_min_length: int = 20
+
     # debug
     save_debug_image: bool = True
 
@@ -26,39 +41,55 @@ class CharacterSegmentationConfig:
 class CharacterSegmenter:
     def __init__(self, config: CharacterSegmentationConfig) -> None:
         self.config = config
+
         self.config.output_dir.mkdir(
             parents=True,
             exist_ok=True,
         )
 
+        cnr_config = CNRConfig(
+            target_theta=np.deg2rad(self.config.line_theta_deg),
+            target_theta_tolerance=np.deg2rad(self.config.line_theta_tolerance_deg),
+            min_length_thresh=self.config.line_min_length,
+        )
+
+        self.line_remover = ContourNoiseRemover(cnr_config)
+
     def run(self) -> List[np.ndarray]:
-        print(f"画像分割開始")
-        img = self.load_image()
-        resized = self.resize_image(img)
-        opened = self.preprocess(resized)
+        print("画像分割開始")
 
-        # noise
-        dist_map = self.make_distance_map(opened)
-        bones_map = self.bones_of_chars(dist_map=dist_map)
+        image = self.load_image()
+        resized = self.resize_image(image)
 
-        # bottom of valley
-        grad_map = self.grad_map_nearest(opened)
+        binary = self.preprocess(resized)
+
+        removed_binary, line_map = self.remove_line_noise(
+            image=resized,
+            binary=binary,
+        )
+
+        grad_map = self.grad_map_nearest(removed_binary)
+
         valley_points_map = self.judge_valley_point_nearest(
-            binary=opened, vector=grad_map, min_theta=np.deg2rad(105)
+            binary=removed_binary,
+            vector=grad_map,
+            min_theta=np.deg2rad(self.config.min_valley_theta_deg),
         )
 
-        self.visualize_valley_line(
-            binary=opened,
+        self.visualize_result(
+            removed_binary=removed_binary,
+            line_map=line_map,
             valley_line_map=valley_points_map,
-            bones_map=bones_map,
         )
+
+        return [
+            binary,
+            removed_binary,
+            valley_points_map,
+        ]
 
     def load_image(self) -> np.ndarray:
-        """
-        get image
-        """
-        image_path = self.config.input_image_path
-        image = cv2.imread(filename=str(image_path))
+        image = cv2.imread(str(self.config.input_image_path))
 
         if image is None:
             raise ValueError("画像を取得できませんでした")
@@ -66,10 +97,8 @@ class CharacterSegmenter:
         return image
 
     def resize_image(self, image: np.ndarray) -> np.ndarray:
-        """
-        transform size
-        """
         height, width = image.shape[:2]
+
         scale = self.config.resize_width / width
 
         resized = cv2.resize(
@@ -83,80 +112,124 @@ class CharacterSegmenter:
 
         return resized
 
-    def preprocess(self, img: np.ndarray) -> np.ndarray:
-        """
-        gray + blur + binarize + open
-        """
-        gray = cv2.cvtColor(src=img, code=cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(src=gray, ksize=(3, 3), sigmaX=0)
+    def preprocess(self, image: np.ndarray) -> np.ndarray:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        blurred = cv2.GaussianBlur(
+            gray,
+            (3, 3),
+            0,
+        )
 
         binary = cv2.threshold(
-            src=blurred,
-            thresh=self.config.binary_threshold,
-            maxval=255,
-            type=cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU,
+            blurred,
+            self.config.binary_threshold,
+            255,
+            cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU,
         )[1]
 
-        kernel = cv2.getStructuringElement(shape=cv2.MORPH_RECT, ksize=(3, 3))
-        opened = cv2.morphologyEx(src=binary, op=cv2.MORPH_OPEN, kernel=kernel)
+        kernel = cv2.getStructuringElement(
+            cv2.MORPH_RECT,
+            (3, 3),
+        )
+
+        opened = cv2.morphologyEx(
+            binary,
+            cv2.MORPH_OPEN,
+            kernel,
+        )
 
         return opened
 
+    def remove_line_noise(
+        self,
+        image: np.ndarray,
+        binary: np.ndarray,
+    ) -> np.ndarray:
+        contours = self.line_remover.detect_contours(binary)
+
+        cont_vecs, contours = self.line_remover.arrange_contour_vectors2(
+            contours=contours,
+        )
+
+        direct_lines = self.line_remover.detect_direct_line(
+            cont_vecs=cont_vecs,
+            contours=contours,
+        )
+
+        direct_lines = self.line_remover.pick_needed_line(
+            direct_lines=direct_lines,
+            target_theta=np.deg2rad(self.config.line_theta_deg),
+        )
+
+        connected_lines = self.line_remover.connect_splitted_line(
+            straight_lines=direct_lines,
+            binary_shape=binary.shape,
+        )
+
+        line_map = self.line_remover.draw_staraight_line(
+            binary=binary,
+            straight_lines=connected_lines,
+        )
+
+        removed = self.line_remover.remove_noise_line(
+            binary=binary,
+            line_map=line_map,
+        )
+
+        return removed, line_map
+
     def make_distance_map(self, binary: np.ndarray) -> np.ndarray:
-        dist_map = scipy.ndimage.distance_transform_edt(binary)
-        # maybe noise removing is here
+        dist_map = scipy.ndimage.distance_transform_edt(binary > 0)
 
         return dist_map
 
     def bones_of_chars(self, dist_map: np.ndarray) -> np.ndarray:
-        bone_points = np.zeros_like(dist_map)
+        bone_points = np.zeros_like(dist_map, dtype=np.uint8)
 
         h, w = dist_map.shape
-        padded = np.pad(array=dist_map, pad_width=1, mode="constant", constant_values=0)
 
-        for i in range(1, h + 1, 1):
-            for j in range(1, w + 1, 1):
-                neighor = padded[i - 1 : i + 2, j - 1 : j + 2]
+        padded = np.pad(
+            dist_map,
+            pad_width=1,
+            mode="constant",
+            constant_values=0,
+        )
 
-                if self.judge_bone_point_3x3(neighor=neighor):
-                    bone_points[i - 1, j - 1] = 1
+        for y in range(1, h + 1):
+            for x in range(1, w + 1):
+                neighbor = padded[y - 1 : y + 2, x - 1 : x + 2]
+
+                if self.judge_bone_point_3x3(neighbor):
+                    bone_points[y - 1, x - 1] = 1
 
         return bone_points
 
-    def judge_bone_point_3x3(self, neighor: np.ndarray) -> bool:
-        """
-        return if the pixel is locating bone point of char
-        """
-        high_and_low = np.zeros(shape=(3, 3))
-        try:
-            high_and_low[np.where(neighor < neighor[1, 1])] = 1
-        except:
-            print(neighor)
-            exit()
+    def judge_bone_point_3x3(self, neighbor: np.ndarray) -> bool:
+        center = neighbor[1, 1]
 
-        high_count = np.sum(high_and_low)
+        lower_map = neighbor < center
 
-        if high_count > 5:
-            return True
-        else:
-            return False
+        lower_count = np.sum(lower_map)
 
-    def grad_map_nearest(self, binary: np.ndarray):
+        return lower_count > 5
+
+    def grad_map_nearest(
+        self,
+        binary: np.ndarray,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         if binary is None:
-            raise ValueError("最近傍ベクトル計算時にバイナリがNoneです。")
-        binary = binary > 0
+            raise ValueError("最近傍ベクトル計算時にbinaryがNoneです")
+
+        binary_bool = binary > 0
 
         indices = scipy.ndimage.distance_transform_edt(
-            input=~binary,
+            input=~binary_bool,
             return_distances=False,
             return_indices=True,
         )
 
-        H, W = binary.shape
-        yy, xx = np.indices((H, W))
-
-        if indices is None:
-            raise ValueError("最近傍ベクトル計算時に indices がNoneです。")
+        yy, xx = np.indices(binary.shape)
 
         nearest_y = indices[0]
         nearest_x = indices[1]
@@ -164,75 +237,106 @@ class CharacterSegmenter:
         vx = nearest_x - xx
         vy = nearest_y - yy
 
-        vectors = np.stack([vx, vy], axis=0).astype(np.float16)
-        norm = np.linalg.norm(vectors, axis=0, keepdims=True)
-        vectors /= norm + np.float16(1e-6)
+        vectors = np.stack(
+            [vx, vy],
+            axis=0,
+        ).astype(np.float32)
 
-        regulated_x = vectors[0]
-        regulated_y = vectors[1]
+        norm = np.linalg.norm(
+            vectors,
+            axis=0,
+            keepdims=True,
+        )
 
-        return regulated_x, regulated_y
+        vectors /= norm + 1e-6
+
+        return vectors[0], vectors[1]
 
     def judge_valley_point_nearest(
-        self, binary: np.ndarray, vector: Tuple[np.ndarray, np.ndarray], min_theta
-    ):
+        self,
+        binary: np.ndarray,
+        vector: Tuple[np.ndarray, np.ndarray],
+        min_theta: float,
+    ) -> np.ndarray:
         print("start finding valley line")
-        thres_dotp = np.cos(min_theta)
+
+        threshold_dot = np.cos(min_theta)
+
         vx, vy = vector
 
-        w, h = vx.shape
-        valley_point_map = np.zeros_like(vx)
+        height, width = binary.shape
+
+        valley_point_map = np.zeros(
+            (height, width),
+            dtype=np.uint8,
+        )
+
         count = 0
 
-        for j in tqdm(range(0, h - 1, 1)):
-            for i in range(0, w - 1, 1):
+        for y in tqdm(range(height)):
+            for x in range(width - 1):
 
-                if binary[i, j] > 0:
+                if binary[y, x] > 0:
                     continue
 
-                dotp = vx[i, j] * vx[i, j + 1] + vy[i, j] * vy[i, j + 1]
-                is_valley_point = dotp < thres_dotp
+                dot = vx[y, x] * vx[y, x + 1] + vy[y, x] * vy[y, x + 1]
 
-                if is_valley_point:
-                    valley_point_map[i, j] = 1
+                if dot < threshold_dot:
+                    valley_point_map[y, x] = 1
                     count += 1
+
         print(f"{count} valley points detected")
 
         return valley_point_map
 
-    def visualize_valley_line(
+    def visualize_result(
         self,
-        binary: np.ndarray,
+        removed_binary: np.ndarray,
+        line_map: np.ndarray,
         valley_line_map: np.ndarray,
-        bones_map: np.ndarray,
     ) -> None:
+        fig, axes = plt.subplots(3, 1, figsize=(9, 6))
 
-        fig, axes = plt.subplots(3, 1, figsize=(8, 8))
+        # =========================
+        # line removed binary
+        # =========================
 
-        # binary
-        axes[0].imshow(binary, cmap="gray")
-        axes[0].set_title("Binary Image")
+        axes[0].imshow(removed_binary, cmap="gray")
+        axes[0].set_title("Line Removed Binary")
         axes[0].axis("off")
-        # bones map
-        ys2, xs2 = np.where(bones_map > 0)
-        axes[1].imshow(binary, cmap="gray")
-        axes[1].scatter(xs2, ys2, s=1)
-        axes[1].set_title("Bones map")
+
+        # =========================
+        # detected line map
+        # =========================
+
+        axes[1].imshow(line_map, cmap="gray")
+        axes[1].set_title("Detected Line Map")
         axes[1].axis("off")
-        # overlay valley line
-        ys1, xs1 = np.where(valley_line_map > 0)
-        axes[2].imshow(binary, cmap="jet")
-        axes[2].scatter(xs1, ys1, s=1)
-        axes[2].set_title("Valley Line Map")
+
+        # =========================
+        # valley point scatter
+        # =========================
+
+        ys_valley, xs_valley = np.where(valley_line_map > 0)
+
+        axes[2].imshow(removed_binary, cmap="gray")
+        axes[2].scatter(xs_valley, ys_valley, s=1)
+        axes[2].set_title("Valley Point Scatter")
         axes[2].axis("off")
 
-        plt.tight_layout()
+        plt.subplots_adjust(
+            hspace=0.02,
+            top=0.98,
+            bottom=0.02,
+        )
+
         plt.show()
 
 
 def main() -> None:
     config = CharacterSegmentationConfig()
-    segmenter = CharacterSegmenter(config=config)
+
+    segmenter = CharacterSegmenter(config)
 
     segmenter.run()
 

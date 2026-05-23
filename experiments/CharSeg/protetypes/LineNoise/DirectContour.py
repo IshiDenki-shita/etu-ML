@@ -2,6 +2,7 @@ from typing import List, Tuple
 from dataclasses import dataclass
 
 from tqdm import tqdm
+from scipy.spatial import cKDTree
 import cv2
 import numpy as np
 
@@ -306,6 +307,9 @@ class ContourNoiseRemover:
 
         line_map = np.zeros(binary_shape, dtype=np.uint8)
 
+        # =========================
+        # draw original line segments
+        # =========================
         for line in straight_lines:
 
             if len(line) < 2:
@@ -323,22 +327,41 @@ class ContourNoiseRemover:
                     color=255,
                     thickness=1,
                 )
+
+        # =========================
+        # collect endpoints
+        # =========================
         endpoints = []
+        endpoint_points = []
 
         for idx, line in enumerate(straight_lines):
 
             if len(line) < 2:
                 continue
 
-            endpoints.append((idx, line[0]))
-            endpoints.append((idx, line[-1]))
+            p1 = line[0]
+            p2 = line[-1]
 
-        for i in tqdm(range(len(endpoints))):
+            endpoints.append((idx, p1))
+            endpoints.append((idx, p2))
 
-            idxA, pA = endpoints[i]
+            endpoint_points.append((p1[1], p1[0]))
+            endpoint_points.append((p2[1], p2[0]))
 
-            for j in range(i + 1, len(endpoints)):
+        # =========================
+        # KDTree nearest search
+        # =========================
+        if len(endpoint_points) > 0:
 
+            points_np = np.array(endpoint_points)
+
+            tree = cKDTree(points_np)
+
+            pairs = tree.query_pairs(r=self.cfg.connect_dist_thresh)
+
+            for i, j in tqdm(list(pairs)):
+
+                idxA, pA = endpoints[i]
                 idxB, pB = endpoints[j]
 
                 if idxA == idxB:
@@ -347,11 +370,6 @@ class ContourNoiseRemover:
                 y1, x1 = pA
                 y2, x2 = pB
 
-                dist = np.hypot(x2 - x1, y2 - y1)
-
-                if dist > self.cfg.connect_dist_thresh:
-                    continue
-
                 cv2.line(
                     line_map,
                     (x1, y1),
@@ -359,6 +377,10 @@ class ContourNoiseRemover:
                     color=255,
                     thickness=1,
                 )
+
+        # =========================
+        # morphology close
+        # =========================
         kernel = np.ones((3, 3), np.uint8)
 
         line_map = cv2.morphologyEx(
@@ -367,7 +389,15 @@ class ContourNoiseRemover:
             kernel,
         )
 
-        contours, _ = cv2.findContours(line_map, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+        # =========================
+        # contourize connected map
+        # =========================
+        contours, _ = cv2.findContours(
+            line_map,
+            cv2.RETR_LIST,
+            cv2.CHAIN_APPROX_NONE,
+        )
+
         connected_lines = []
 
         for contour in contours:
@@ -376,6 +406,7 @@ class ContourNoiseRemover:
                 continue
 
             line = []
+
             for pt in contour:
                 x, y = pt[0]
                 line.append((y, x))
