@@ -1,6 +1,7 @@
 from typing import List, Tuple
 from dataclasses import dataclass
 
+from tqdm import tqdm
 import cv2
 import numpy as np
 
@@ -12,14 +13,14 @@ class CNRConfig:
     erosion_kernel_size: int = 1
     erosion_iterations: int = 0
     # input/output
-    input_path: str = "photos/sample/cells/toriten.jpeg"
+    input_path: str = "photos/sample/cells/soboro.jpeg"
     # contour vector
-    cont_nighr_len: int = 2
-    max_theta_thresh: np.float16 = np.pi / np.float16(180)
+    cont_nighr_len: int = 10
+    max_theta_thresh: np.float16 = np.deg2rad(3, dtype=np.float16)
     # picking vectors
-    min_length_thresh: np.float16 = np.float16(5)
-    target_theta: np.float16 = np.float16(0 * np.pi / 180)
-    target_theta_tolerance: np.float16 = np.float16(1 * np.pi / 180)
+    min_length_thresh: np.float16 = np.float16(20)
+    target_theta: np.float16 = np.deg2rad(0, dtype=np.float16)
+    target_theta_tolerance: np.float16 = np.deg2rad(3, dtype=np.float16)
 
 
 class ContourNoiseRemover:
@@ -33,7 +34,7 @@ class ContourNoiseRemover:
 
         contours = self.detect_contours(binary)
 
-        cont_vecs = self.arrange_contour_vectors2(contours=contours)
+        cont_vecs, contours = self.arrange_contour_vectors2(contours=contours)
 
         direct_lines = self.detect_direct_line(cont_vecs=cont_vecs, contours=contours)
 
@@ -41,7 +42,13 @@ class ContourNoiseRemover:
             direct_lines=direct_lines, target_theta=self.cfg.target_theta
         )
 
-        line_map = self.draw_staraight_line(binary=binary, straight_lines=direct_lines)
+        connected_lines = self.connect_splitted_line(
+            straight_lines=direct_lines, binary_shape=binary.shape
+        )
+
+        line_map = self.draw_staraight_line(
+            binary=binary, straight_lines=connected_lines
+        )
 
         self.visualize_result(
             img=img,
@@ -86,13 +93,16 @@ class ContourNoiseRemover:
 
         contours, _ = cv2.findContours(
             binary,
-            cv2.RETR_EXTERNAL,  # only outside edges
+            cv2.RETR_CCOMP,  # only outside edges
             cv2.CHAIN_APPROX_NONE,
         )
 
         return contours
 
     def is_closed_contour(self, contour: np.ndarray, dist_thresh: float = 1.5) -> bool:
+        """
+        I didn't notice cv2.findContour returns only closed contour
+        """
         if len(contour) < 2:
             return False
 
@@ -142,6 +152,7 @@ class ContourNoiseRemover:
         calculate tangent vector on contour more simply
         """
         contour_vectors = []
+        valid_contours = []
         cont_neighr_len = self.cfg.cont_nighr_len
 
         for contour in contours:
@@ -184,12 +195,15 @@ class ContourNoiseRemover:
                 tangent_vectors = tangent_vectors + fin_vecs
 
             contour_vectors.append(tangent_vectors)
+            valid_contours.append(contour)
 
-        print(f"arranged tangent vectors about {len(contours)} contours")
+        print(f"arranged tangent vectors about {len(valid_contours)} valid_contours")
         # the idx of contour corresponed to tangent_vector's
-        return contour_vectors
+        return contour_vectors, valid_contours
 
-    def detect_direct_line(self, cont_vecs: List[np.ndarray], contours: np.ndarray):
+    def detect_direct_line(
+        self, cont_vecs: List[np.ndarray], contours: List[np.ndarray]
+    ):
         """
         return direct line as like a cv2.findContour()
         """
@@ -198,8 +212,12 @@ class ContourNoiseRemover:
         for i, (tan_vecs, contour) in enumerate(zip(cont_vecs, contours)):
             direct_line = []
 
-            theta_diffs = self.vector_difference_theta(tan_vecs=tan_vecs)
+            is_closed_contour = self.is_closed_contour(contour=contour)
+            theta_diffs = self.vector_difference_theta(
+                tan_vecs=tan_vecs, is_closed=is_closed_contour
+            )
             length = len(theta_diffs)
+
             for i in range(length):
                 idx = i % length
 
@@ -210,17 +228,22 @@ class ContourNoiseRemover:
                     direct_lines.append(direct_line)
                     direct_line = []
 
+        print(f"detcted {len(direct_lines)} direct_lines")
         return direct_lines
 
-    def vector_difference_theta(self, tan_vecs: np.ndarray):
+    def vector_difference_theta(self, tan_vecs: np.ndarray, is_closed: bool = False):
         """
         the difference theta1 and theta2 as a vector difference
         """
         theta_diffs = []
         length = len(tan_vecs)
-        for i in range(length - 1):
+        for i in range(length):
+
+            if not is_closed and i == length - 1:
+                continue
+
             vx1, vy1 = tan_vecs[i]
-            vx2, vy2 = tan_vecs[(i + 1)]
+            vx2, vy2 = tan_vecs[(i + 1) % length]
 
             norm1 = np.hypot(vx1, vy1)
             norm2 = np.hypot(vx2, vy2)
@@ -266,42 +289,188 @@ class ContourNoiseRemover:
         )
         return needed_lines
 
-    def draw_staraight_line(self, binary: np.ndarray, straight_lines):
-        straight_map = np.zeros_like(binary)
-
-        for straight_line in straight_lines:
-            for y, x in straight_line:
-                straight_map[y, x] = 1
-
-        print(f"completed making map with straight lines")
-        return straight_map
-
-    def horizontal_filter(
-        self, binary: np.ndarray, cont_vecs: np.ndarray, contours: List[np.ndarray]
+    def connect_splitted_line(
+        self,
+        straight_lines,
+        binary_shape,
+        distance_thresh=50,
     ):
-        """
-        judge a vector on a pixel is horizontal by comparing cos
-        """
-        filtered_map = np.zeros_like(binary)
 
-        for i, tangent_vecs in enumerate(cont_vecs):
-            for j, tangent_vec in enumerate(tangent_vecs):
+        line_map = np.zeros(binary_shape, dtype=np.uint8)
 
-                dotp = tangent_vec[0]  # dot production = vec[0]*1 + vec[1]*0 = vec[0]
-                norm = np.hypot(tangent_vec[0], tangent_vec[1])
+        # =====================================
+        # 1. rasterize all fragments
+        # =====================================
+        for line in tqdm(straight_lines):
 
-                if norm == 0:
+            if len(line) < 2:
+                continue
+
+            for i in range(len(line) - 1):
+
+                y1, x1 = line[i]
+                y2, x2 = line[i + 1]
+
+                cv2.line(
+                    line_map,
+                    (x1, y1),
+                    (x2, y2),
+                    color=255,
+                    thickness=1,
+                )
+
+        # =====================================
+        # 2. endpoint bridging
+        # =====================================
+        endpoints = []
+
+        for idx, line in enumerate(straight_lines):
+
+            if len(line) < 2:
+                continue
+
+            endpoints.append((idx, line[0]))
+            endpoints.append((idx, line[-1]))
+
+        for i in range(len(endpoints)):
+
+            idxA, pA = endpoints[i]
+
+            for j in range(i + 1, len(endpoints)):
+
+                idxB, pB = endpoints[j]
+
+                if idxA == idxB:
                     continue
 
-                cos = dotp / norm
-                cos = np.clip(cos, -1.0, 1.0)
+                y1, x1 = pA
+                y2, x2 = pB
 
-                if abs(cos) > np.cos(self.cfg.target_line_theta_tolerance):
-                    x, y = contours[i][j % len(contours[i])][0]
-                    filtered_map[y, x] = 1
+                dist = np.hypot(x2 - x1, y2 - y1)
 
-        print(f"return fitered_map")
-        return filtered_map
+                if dist > distance_thresh:
+                    continue
+
+                cv2.line(
+                    line_map,
+                    (x1, y1),
+                    (x2, y2),
+                    color=255,
+                    thickness=1,
+                )
+
+        # =====================================
+        # 3. topology repair
+        # =====================================
+        kernel = np.ones((3, 3), np.uint8)
+
+        line_map = cv2.morphologyEx(
+            line_map,
+            cv2.MORPH_CLOSE,
+            kernel,
+        )
+
+        # =====================================
+        # 4. thin line
+        # =====================================
+        try:
+            from skimage.morphology import skeletonize
+
+            line_map = skeletonize(line_map > 0).astype(np.uint8) * 255
+
+        except Exception:
+            pass
+
+        # =====================================
+        # 5. reconstruct contour order
+        # =====================================
+        contours, _ = cv2.findContours(line_map, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+        connected_lines = []
+
+        for contour in contours:
+
+            if len(contour) < 2:
+                continue
+
+            line = []
+            for pt in contour:
+                x, y = pt[0]
+                line.append((y, x))
+
+            connected_lines.append(line)
+
+        print(f"connected lines : {len(straight_lines)} -> {len(connected_lines)}")
+
+        return connected_lines
+
+    def draw_staraight_line(self, binary: np.ndarray, straight_lines):
+
+        straight_map = np.zeros_like(binary, dtype=np.uint8)
+
+        # =========================
+        # rasterize connected lines
+        # =========================
+        for straight_line in straight_lines:
+
+            if len(straight_line) < 2:
+                continue
+
+            for i in range(len(straight_line) - 1):
+
+                y1, x1 = straight_line[i]
+                y2, x2 = straight_line[i + 1]
+
+                cv2.line(
+                    straight_map,
+                    (x1, y1),
+                    (x2, y2),
+                    color=255,
+                    thickness=1,
+                )
+
+        # =========================
+        # reconnect tiny gaps
+        # =========================
+        kernel = np.ones((3, 3), np.uint8)
+
+        straight_map = cv2.morphologyEx(
+            straight_map,
+            cv2.MORPH_CLOSE,
+            kernel,
+        )
+
+        # =========================
+        # reconstruct contour order
+        # =========================
+        contours, _ = cv2.findContours(
+            straight_map,
+            cv2.RETR_LIST,
+            cv2.CHAIN_APPROX_NONE,
+        )
+
+        ordered_map = np.zeros_like(binary, dtype=np.uint8)
+
+        for contour in contours:
+
+            if len(contour) < 2:
+                continue
+
+            for i in range(len(contour) - 1):
+
+                x1, y1 = contour[i][0]
+                x2, y2 = contour[i + 1][0]
+
+                cv2.line(
+                    ordered_map,
+                    (x1, y1),
+                    (x2, y2),
+                    color=1,
+                    thickness=1,
+                )
+
+        print("completed making map with straight lines")
+
+        return ordered_map
 
     def visualize_result(
         self,
@@ -314,26 +483,35 @@ class ContourNoiseRemover:
     ):
         """
         visualize:
-        - contour
-        - tangent vector
-        - detected horizontal line pixels
+        1. binary
+        2. contour only
+        3. contour + tangent vector + detected horizontal pixels
         """
 
         import matplotlib.pyplot as plt
 
-        h, w = binary.shape
+        # =========================
+        # image1: binary
+        # =========================
+        binary_vis = binary.copy()
 
-        # RGB化
-        vis = cv2.cvtColor(binary * 255, cv2.COLOR_GRAY2BGR)
+        # =========================
+        # image2: contour only
+        # =========================
+        contour_vis = cv2.cvtColor(binary * 255, cv2.COLOR_GRAY2BGR)
 
-        # contour描画
         cv2.drawContours(
-            vis,
+            contour_vis,
             contours,
             contourIdx=-1,
             color=(0, 255, 0),
             thickness=1,
         )
+
+        # =========================
+        # image3: full visualization
+        # =========================
+        vis = contour_vis.copy()
 
         # tangent vector描画
         for i, tangent_vecs in enumerate(cont_vecs):
@@ -341,7 +519,9 @@ class ContourNoiseRemover:
             contour = contours[i]
 
             for j, (vx, vy) in enumerate(tangent_vecs):
+
                 x, y = contour[j % len(contour)][0]
+
                 norm = np.hypot(vx, vy)
 
                 if norm == 0:
@@ -350,8 +530,10 @@ class ContourNoiseRemover:
                 # normalize
                 vx = vx / norm
                 vy = vy / norm
+
                 ex = int(x + vx * scale)
                 ey = int(y + vy * scale)
+
                 cv2.arrowedLine(
                     vis,
                     (x, y),
@@ -360,21 +542,49 @@ class ContourNoiseRemover:
                     1,
                     tipLength=0.2,
                 )
+
         # horizontal pixel を赤で重ねる
         vis[horizontal_map > 0] = (0, 0, 255)
-        # 画像サイズに合わせてwindowを作成
+
+        # =========================
+        # matplotlib表示
+        # =========================
+
         dpi = 100
-        fig_w = vis.shape[1] / dpi
-        fig_h = vis.shape[0] / dpi
+        h, w = binary.shape
 
-        fig = plt.figure(figsize=(fig_w, fig_h), dpi=dpi)
+        fig_w = w / dpi
+        fig_h = h / dpi
 
-        plt.imshow(cv2.cvtColor(vis, cv2.COLOR_BGR2RGB))
-        plt.title("Contour + Tangent Vector + Horizontal Detection")
-        plt.axis("off")
+        fig, axes = plt.subplots(
+            3,
+            1,
+            figsize=(fig_w, fig_h * 3),
+            dpi=dpi,
+        )
 
-        # 余白除去
-        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        # binary
+        axes[0].imshow(binary_vis, cmap="gray")
+        axes[0].set_title("Binary")
+        axes[0].axis("off")
+
+        # contour only
+        axes[1].imshow(cv2.cvtColor(contour_vis, cv2.COLOR_BGR2RGB))
+        axes[1].set_title("Contour")
+        axes[1].axis("off")
+
+        # full visualization
+        axes[2].imshow(cv2.cvtColor(vis, cv2.COLOR_BGR2RGB))
+        axes[2].set_title("Contour + Tangent + Detection")
+        axes[2].axis("off")
+
+        plt.subplots_adjust(
+            left=0,
+            right=1,
+            top=0.98,
+            bottom=0.02,
+            hspace=0.1,
+        )
 
         plt.show()
 
