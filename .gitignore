@@ -2,7 +2,12 @@
 __pycache__
 .venv/
 
-photos/menu_sample
+*.npy
+*.pth
+
+experiments/CharSeg/protetypes/ETLdatasets/*.npy
+
+photos/sample
 photos/catched/
 photos/cells/
 photos/chars/
