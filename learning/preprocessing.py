@@ -4,7 +4,8 @@ import glob
 import json
 import csv
 import os
-import cv2   # ← OpenCV を追加
+import cv2
+import random
 
 class main:
     def __init__(self):
@@ -19,7 +20,9 @@ class main:
         self.out_dict = "supports/chars_dict.json"
 
         # 太字化用カーネル（太さ調整）
-        self.kernel = np.ones((3, 3), np.uint8)
+        self.kernel = np.ones((1, 1), np.uint8)
+        self.angle = 20
+        self.dx = 10
 
     # ----------------------------------------------------
     # ① ラベル辞書を作成
@@ -65,12 +68,21 @@ class main:
         for i, f in enumerate(all_files):
             # PNG → グレースケール
             img = Image.open(f).convert("L").resize((64, 64))
+
+            #回転
+            img = img.rotate(random.randint(-self.angle,self.angle),expand=True,fillcolor=0)
+            img = img.resize((64, 64))
+
+            #npに変換
             img = np.array(img, dtype=np.uint8)
 
-            # -------------------------
-            # ★ ここで太字化処理 ★
-            # -------------------------
+            #太さ調整
             img = cv2.dilate(img, self.kernel, iterations=1)
+
+            #平行移動
+            afin_matrix = np.float32([[1,0,random.randint(-self.dx,self.dx)],[0,1,0]])
+            img = cv2.warpAffine(img,afin_matrix,(64,64))
+
 
             images[i, 0] = img
             labels[i] = label

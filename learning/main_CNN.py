@@ -23,6 +23,45 @@ class ETLDataset(Dataset):
         y = torch.tensor(self.labels[idx], dtype=torch.long)
         return x, y
 
+# =============================
+# Residualブロック
+# =============================
+class ResidualBlock(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(channels, channels, 3, padding=1),
+            nn.BatchNorm2d(channels),
+            nn.ReLU(),
+            nn.Conv2d(channels, channels, 3, padding=1),
+            nn.BatchNorm2d(channels),
+        )
+
+    def forward(self, x):
+        return torch.relu(self.conv(x) + x)
+
+
+# =============================
+# DEブロック
+# =============================
+class SEBlock(nn.Module):
+    def __init__(self, channels, reduction=16):
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channels, channels // reduction),
+            nn.ReLU(),
+            nn.Linear(channels // reduction, channels),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        return x * y
+
+
 
 # =============================
 # CNN（軽量・高速）
@@ -33,10 +72,14 @@ class HiraganaCNN(nn.Module):
         self.model = nn.Sequential(
             nn.Conv2d(1, 32, 3, padding=1),
             nn.ReLU(),
+            ResidualBlock(32), 
+            SEBlock(32),
             nn.MaxPool2d(2),  # 32×32
 
             nn.Conv2d(32, 64, 3, padding=1),
             nn.ReLU(),
+            ResidualBlock(64), 
+            SEBlock(64),
             nn.MaxPool2d(2),  # 16×16
 
             nn.Flatten(),
@@ -93,7 +136,7 @@ def evaluate(model, loader, device):
 # =============================
 # メイン処理
 # =============================
-def main(epochs=10, batch_size=128):
+def main(epochs=30, batch_size=128):
     img_path = "learning/dataset/etl_images.npy"
     label_path = "learning/dataset/etl_labels.npy"
 
@@ -118,7 +161,7 @@ def main(epochs=10, batch_size=128):
     # モデル
     model = HiraganaCNN(num_classes).to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=0.0003)
 
     # 学習
     for epoch in range(epochs):
@@ -130,7 +173,7 @@ def main(epochs=10, batch_size=128):
         print(f"  Test Accuracy: {acc:.4f}")
 
     # 保存
-    torch.save(model.state_dict(), "supports/hiragana_cnn_fast.pth")
+    torch.save(model.state_dict(), "supports/hiragana_cnn.pth")
     print("モデル保存完了")
 
 

@@ -473,12 +473,13 @@ class check_menu:
 
         with open(self.chars_dict_url, "r", encoding="utf-8") as f:
             self.idx_to_char = json.load(f)
+            self.num_classes = int(len(self.idx_to_char))
 
         with open(self.menu_url, encoding="utf-8") as f:
             reader = csv.reader(f)
             self.menu_list = [row[0] for row in reader if row]
 
-        self.model = HiraganaCNN()
+        self.model = HiraganaCNN(num_classes = self.num_classes)
         self.model.load_state_dict(torch.load(self.cnn_pth_url, map_location="cpu"))
         self.model.eval()
 
@@ -487,70 +488,95 @@ class check_menu:
         dist = Levenshtein.distance(menu, best)
         return best if dist <= threshold else menu
 
-    def predict_char(self, img):
+    def predict_char(self, img, k):
 
         if isinstance(img, Image.Image):
             img = img.convert("L").resize((64, 64))
             img = np.array(img)/255.0
+
+        #細文字化
+        kernel = np.ones((k, k), np.uint8)
+        img = cv2.erode(img, kernel, iterations=1)
+
         x = torch.tensor(img).unsqueeze(0).unsqueeze(0).float()
         out = self.model(x)
         pred = out.argmax(1).item()
-        return self.idx_to_char[pred]
+        return self.idx_to_char[str(pred)]
 
-    def predict_sentence(self, cell):
-        chars = [self.predict_char(img) for img in cell]
+    def predict_sentence(self, cell, k, threshold):
+        chars = [self.predict_char(img, k) for img in cell]
         line = "".join(chars)
-        return self.correct(line)
+        return self.correct(menu=line, threshold=threshold)
 
-    def run(self, cells):
+    def run(self, cells, k):
         res = []
         for cell in cells:
-            res.append(self.predict_sentence(cell))
+            res.append(self.predict_sentence(cell, k))
         return res
 
+class ResidualBlock(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(channels, channels, 3, padding=1),
+            nn.BatchNorm2d(channels),
+            nn.ReLU(),
+            nn.Conv2d(channels, channels, 3, padding=1),
+            nn.BatchNorm2d(channels),
+        )
+
+    def forward(self, x):
+        return torch.relu(self.conv(x) + x)
+
+class SEBlock(nn.Module):
+    def __init__(self, channels, reduction=16):
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channels, channels // reduction),
+            nn.ReLU(),
+            nn.Linear(channels // reduction, channels),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        return x * y
 
 class HiraganaCNN(nn.Module):
     def __init__(self, num_classes):
         super().__init__()
-        self.features = nn.Sequential(
+        self.model = nn.Sequential(
             nn.Conv2d(1, 32, 3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(32, 32, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),
+            ResidualBlock(32), 
+            SEBlock(32),
+            nn.MaxPool2d(2),  # 32×32
 
             nn.Conv2d(32, 64, 3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(64, 64, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),
-        )
+            ResidualBlock(64), 
+            SEBlock(64),
+            nn.MaxPool2d(2),  # 16×16
 
-        self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(16384, 256),
-            nn.BatchNorm1d(256),
+            nn.Linear(64 * 16 * 16, 256),
             nn.ReLU(),
             nn.Linear(256, num_classes),
         )
 
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-
     def forward(self, x):
-        x = self.features(x)
-        x = self.classifier(x)
-        return x
-
+        return self.model(x)
 
 if __name__ == "__main__":
     seg = CharacterSegmenter()
     cnn = check_menu()
     utl = MLutility()
 
-    menus = []
     cell_imgs = utl.take_cell_imgs()
+    final_ans = {}
 
     for i, img in enumerate(cell_imgs):
         print(i, type(img), img is None)
@@ -559,21 +585,29 @@ if __name__ == "__main__":
         print("画像を取得できませんでした。")
         exit()
 
-    for i, img in enumerate(cell_imgs):
-        print(f"{i + 1}番目のセル")
-        cell = seg.run(img=img)
-        # seg.visualize(img, binary, proj, areas)
+    for threshold in [1,10]:
+        menu_list = []
+        for k in range(1,5):
+            menus = []
+            for i, img in enumerate(cell_imgs):
+                print(f"{i + 1}番目のセル")
+                cell = seg.run(img=img)
+                # seg.visualize(img, binary, proj, areas)
 
-        name = cnn.predict_sentence(cell=cell)
+                name = cnn.predict_sentence(cell=cell, k=k, threshold=threshold)
 
-        if name == 1 and len(menus) >= 1:
-            menus.append(menus[i - 1])
-        elif name == 0:
-            pass
+                if name == 1 and len(menus) >= 1:
+                    menus.append(menus[i - 1])
+                elif name == 0:
+                    pass
 
-        menus.append(name)
-        print(name, end="\n\n")
-    print(menus)
+                menus.append(name)
+                print(name, end="\n\n")
+            menu_list.append(f"k={k}→")
+            menu_list.append(menus)
+        final_ans[threshold] = menu_list
+    print(final_ans[1])
+    print(final_ans[10])
 
     # utl.send_menu_json_to_saito(menus=menus)
     # making JSON
