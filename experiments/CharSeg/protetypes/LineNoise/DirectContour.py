@@ -16,7 +16,7 @@ class CNRConfig:
     # contour vector
     cont_nighr_len: int = 2
     max_theta_thresh: np.float16 = np.pi / np.float16(180)
-    min_length_thresh: np.float16 = np.float16(100)
+    min_length_thresh: np.float16 = np.float16(10)
 
 
 class ContourNoiseRemover:
@@ -32,11 +32,9 @@ class ContourNoiseRemover:
 
         cont_vecs = self.arrange_contour_vectors2(contours=contours)
 
-        direct_lines = self.detect_direct_line(
-            binary=binary, cont_vecs=cont_vecs, contours=contours
-        )
+        direct_lines = self.detect_direct_line(cont_vecs=cont_vecs, contours=contours)
 
-        direct_lines = self.rm_needless_line(direct_lines=direct_lines, horizontal=True)
+        direct_lines = self.pick_needed_line(direct_lines=direct_lines, horizontal=True)
 
         line_map = self.draw_staraight_line(binary=binary, straight_lines=direct_lines)
 
@@ -163,8 +161,6 @@ class ContourNoiseRemover:
                 x2, y2 = contour[idx2][0]
                 tangent_vectors.append((x2 - x1, y2 - y1))
 
-            contour_vectors.append(tangent_vectors)
-
             if not is_closed:
                 start_vecs = []
                 for i in range(cont_neighr_len):
@@ -182,11 +178,16 @@ class ContourNoiseRemover:
 
                 tangent_vectors = tangent_vectors + fin_vecs
 
+            contour_vectors.append(tangent_vectors)
+
+        print(f"arranged tangent vectors about {len(contours)} contours")
+        # the idx of contour corresponed to tangent_vector's
         return contour_vectors
 
-    def detect_direct_line(
-        self, binary: np.ndarray, cont_vecs: np.ndarray, contours: np.ndarray
-    ):
+    def detect_direct_line(self, cont_vecs: List[np.ndarray], contours: np.ndarray):
+        """
+        return direct line as like a cv2.findContour()
+        """
         direct_lines = []
 
         for i, (tan_vecs, contour) in enumerate(zip(cont_vecs, contours)):
@@ -200,40 +201,11 @@ class ContourNoiseRemover:
                 if abs(theta_diffs[idx]) <= self.cfg.max_theta_thresh:
                     x, y = contour[idx][0]
                     direct_line.append((y, x))
-            direct_lines.append(direct_line)
+                elif len(direct_line) > 2:
+                    direct_lines.append(direct_line)
+                    direct_line = []
 
         return direct_lines
-
-    def rm_needless_line(self, direct_lines, horizontal: bool = True):
-        needed_lines = []
-        for direct_line in direct_lines:
-            sx, sy = direct_line[0]
-            fx, fy = direct_line[-1]
-
-            if horizontal:
-                dot = fx - sx
-            else:
-                dot = sy - fy
-
-            norm = np.hypot(fx - sx, sy - fy)
-
-            if norm == 0:
-                continue
-
-            cos = dot / norm
-            if abs(cos) >= np.cos(self.cfg.max_theta_thresh):
-                needed_lines.append(direct_line)
-
-        return needed_lines
-
-    def draw_staraight_line(self, binary: np.ndarray, straight_lines):
-        straight_map = np.zeros_like(binary)
-
-        for straight_line in straight_lines:
-            for y, x in straight_line:
-                straight_map[y, x] = 1
-
-        return straight_map
 
     def vector_difference_theta(self, tan_vecs: np.ndarray):
         """
@@ -261,8 +233,47 @@ class ContourNoiseRemover:
 
         return np.array(theta_diffs)
 
+    def pick_needed_line(self, direct_lines, horizontal: bool = True):
+        needed_lines = []
+        for direct_line in direct_lines:
+
+            if len(direct_line) < self.cfg.min_length_thresh:
+                continue
+
+            sx, sy = direct_line[0]
+            fx, fy = direct_line[-1]
+
+            if horizontal:
+                dot = fx - sx  # dot = vx*1 + vy*0
+            else:
+                dot = fy - sy  # dot = vx*1 + vy*0
+
+            norm = np.hypot(fx - sx, sy - fy)
+
+            if norm == 0:
+                continue
+
+            cos = dot / norm
+            if abs(cos) >= np.cos(np.pi / np.float16(120)):
+                needed_lines.append(direct_line)
+
+        print(
+            f"return {len(needed_lines)} needed linnes and removed {len(direct_lines) - len(needed_lines)}"
+        )
+        return needed_lines
+
+    def draw_staraight_line(self, binary: np.ndarray, straight_lines):
+        straight_map = np.zeros_like(binary)
+
+        for straight_line in straight_lines:
+            for y, x in straight_line:
+                straight_map[y, x] = 1
+
+        print(f"completed making map with straight lines")
+        return straight_map
+
     def horizontal_filter(
-        self, binary: np.ndarray, cont_vecs: List, contours: List[np.ndarray]
+        self, binary: np.ndarray, cont_vecs: np.ndarray, contours: List[np.ndarray]
     ):
         """
         judge a vector on a pixel is horizontal by comparing cos
@@ -285,6 +296,7 @@ class ContourNoiseRemover:
                     x, y = contours[i][j % len(contours[i])][0]
                     filtered_map[y, x] = 1
 
+        print(f"return fitered_map")
         return filtered_map
 
     def visualize_result(
