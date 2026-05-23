@@ -21,6 +21,8 @@ class CNRConfig:
     min_length_thresh: np.float16 = np.float16(20)
     target_theta: np.float16 = np.deg2rad(0, dtype=np.float16)
     target_theta_tolerance: np.float16 = np.deg2rad(3, dtype=np.float16)
+    # line connection
+    connect_dist_thresh: np.uint8 = np.uint8(100)
 
 
 class ContourNoiseRemover:
@@ -56,6 +58,14 @@ class ContourNoiseRemover:
             contours=contours,
             cont_vecs=cont_vecs,
             horizontal_map=line_map,
+        )
+
+        removed = self.remove_noise_line(binary=binary, line_map=line_map)
+
+        self.visualize_after_removed(
+            binary=binary,
+            line_map=line_map,
+            removed=removed,
         )
 
     def load_image(self, image_path: str):
@@ -228,6 +238,9 @@ class ContourNoiseRemover:
                     direct_lines.append(direct_line)
                     direct_line = []
 
+                if len(direct_line) > 2:
+                    direct_lines.append(direct_line)
+
         print(f"detcted {len(direct_lines)} direct_lines")
         return direct_lines
 
@@ -289,19 +302,11 @@ class ContourNoiseRemover:
         )
         return needed_lines
 
-    def connect_splitted_line(
-        self,
-        straight_lines,
-        binary_shape,
-        distance_thresh=50,
-    ):
+    def connect_splitted_line(self, straight_lines, binary_shape):
 
         line_map = np.zeros(binary_shape, dtype=np.uint8)
 
-        # =====================================
-        # 1. rasterize all fragments
-        # =====================================
-        for line in tqdm(straight_lines):
+        for line in straight_lines:
 
             if len(line) < 2:
                 continue
@@ -318,10 +323,6 @@ class ContourNoiseRemover:
                     color=255,
                     thickness=1,
                 )
-
-        # =====================================
-        # 2. endpoint bridging
-        # =====================================
         endpoints = []
 
         for idx, line in enumerate(straight_lines):
@@ -332,7 +333,7 @@ class ContourNoiseRemover:
             endpoints.append((idx, line[0]))
             endpoints.append((idx, line[-1]))
 
-        for i in range(len(endpoints)):
+        for i in tqdm(range(len(endpoints))):
 
             idxA, pA = endpoints[i]
 
@@ -348,7 +349,7 @@ class ContourNoiseRemover:
 
                 dist = np.hypot(x2 - x1, y2 - y1)
 
-                if dist > distance_thresh:
+                if dist > self.cfg.connect_dist_thresh:
                     continue
 
                 cv2.line(
@@ -358,10 +359,6 @@ class ContourNoiseRemover:
                     color=255,
                     thickness=1,
                 )
-
-        # =====================================
-        # 3. topology repair
-        # =====================================
         kernel = np.ones((3, 3), np.uint8)
 
         line_map = cv2.morphologyEx(
@@ -370,20 +367,6 @@ class ContourNoiseRemover:
             kernel,
         )
 
-        # =====================================
-        # 4. thin line
-        # =====================================
-        try:
-            from skimage.morphology import skeletonize
-
-            line_map = skeletonize(line_map > 0).astype(np.uint8) * 255
-
-        except Exception:
-            pass
-
-        # =====================================
-        # 5. reconstruct contour order
-        # =====================================
         contours, _ = cv2.findContours(line_map, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
         connected_lines = []
 
@@ -407,9 +390,6 @@ class ContourNoiseRemover:
 
         straight_map = np.zeros_like(binary, dtype=np.uint8)
 
-        # =========================
-        # rasterize connected lines
-        # =========================
         for straight_line in straight_lines:
 
             if len(straight_line) < 2:
@@ -428,9 +408,6 @@ class ContourNoiseRemover:
                     thickness=1,
                 )
 
-        # =========================
-        # reconnect tiny gaps
-        # =========================
         kernel = np.ones((3, 3), np.uint8)
 
         straight_map = cv2.morphologyEx(
@@ -439,9 +416,6 @@ class ContourNoiseRemover:
             kernel,
         )
 
-        # =========================
-        # reconstruct contour order
-        # =========================
         contours, _ = cv2.findContours(
             straight_map,
             cv2.RETR_LIST,
@@ -471,6 +445,31 @@ class ContourNoiseRemover:
         print("completed making map with straight lines")
 
         return ordered_map
+
+    def remove_noise_line(self, binary, line_map):
+
+        contours, hierarchy = cv2.findContours(
+            line_map,
+            cv2.RETR_CCOMP,
+            cv2.CHAIN_APPROX_NONE,
+        )
+
+        mask = np.zeros_like(binary, dtype=np.uint8)
+
+        for contour in contours:
+
+            cv2.drawContours(
+                mask,
+                [contour],
+                contourIdx=-1,
+                color=255,
+                thickness=-1,
+            )
+
+        removed = binary.copy()
+        removed[mask > 0] = 0
+
+        return removed
 
     def visualize_result(
         self,
@@ -576,6 +575,81 @@ class ContourNoiseRemover:
         # full visualization
         axes[2].imshow(cv2.cvtColor(vis, cv2.COLOR_BGR2RGB))
         axes[2].set_title("Contour + Tangent + Detection")
+        axes[2].axis("off")
+
+        plt.subplots_adjust(
+            left=0,
+            right=1,
+            top=0.98,
+            bottom=0.02,
+            hspace=0.1,
+        )
+
+        plt.show()
+
+    def visualize_after_removed(
+        self,
+        binary: np.ndarray,
+        line_map: np.ndarray,
+        removed: np.ndarray,
+    ):
+
+        import matplotlib.pyplot as plt
+
+        dpi = 100
+        h, w = binary.shape
+
+        fig_w = w / dpi
+        fig_h = h / dpi
+
+        fig, axes = plt.subplots(
+            3,
+            1,
+            figsize=(fig_w, fig_h * 3),
+            dpi=dpi,
+        )
+
+        # =========================
+        # image1: original binary
+        # =========================
+        axes[0].imshow(binary, cmap="gray")
+        axes[0].set_title("Binary")
+        axes[0].axis("off")
+
+        # =========================
+        # image2: detected contours with different colors
+        # =========================
+        contours, _ = cv2.findContours(
+            line_map.astype(np.uint8),
+            cv2.RETR_LIST,
+            cv2.CHAIN_APPROX_NONE,
+        )
+
+        color_vis = np.zeros((h, w, 3), dtype=np.uint8)
+
+        rng = np.random.default_rng(5)
+
+        for contour in contours:
+
+            color = rng.integers(0, 255, size=3).tolist()
+
+            cv2.drawContours(
+                color_vis,
+                [contour],
+                contourIdx=-1,
+                color=color,
+                thickness=1,
+            )
+
+        axes[1].imshow(cv2.cvtColor(color_vis, cv2.COLOR_BGR2RGB))
+        axes[1].set_title("Detected Lines")
+        axes[1].axis("off")
+
+        # =========================
+        # image3: removed result
+        # =========================
+        axes[2].imshow(removed, cmap="gray")
+        axes[2].set_title("After Line Removal")
         axes[2].axis("off")
 
         plt.subplots_adjust(
