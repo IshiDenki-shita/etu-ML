@@ -7,17 +7,9 @@ import numpy as np
 import scipy
 from tqdm import tqdm
 
-from experiments.CharSeg.protetypes.border_line.segmentation.context.segmentation_context import (
-    SegmentationContext,
-)
-from experiments.CharSeg.protetypes.border_line.segmentation.pipeline.line_removal import (
-    LineRemover,
-)
-from experiments.CharSeg.protetypes.border_line.segmentation.preprocessing.preprocessor import (
-    preprocess_image,
-)
-from experiments.CharSeg.protetypes.border_line.segmentation.visualization.visualizer import (
-    visualize_result as visualize_segmentation_result,
+from experiments.segmentation.context.segmentation_context import SegmentationContext
+from experiments.segmentation.pipeline.character_segmentation_pipeline import (
+    CharacterSegmentationPipeline,
 )
 
 
@@ -52,7 +44,7 @@ class CharacterSegmenter:
             exist_ok=True,
         )
 
-        self.line_remover = LineRemover()
+        self.pipeline = CharacterSegmentationPipeline(self.config)
         self.context: SegmentationContext | None = None
 
     def run(self) -> List[np.ndarray]:
@@ -62,32 +54,20 @@ class CharacterSegmenter:
         resized = self.resize_image(image)
 
         self.context = SegmentationContext(original_image=resized)
+        self.context = self.pipeline.process(self.context)
 
-        binary = preprocess_image(resized, self.config.binary_threshold)
-        self.context.binary = binary
+        removed_binary = self.context.removed_binary
+        valley_points_map = self.context.valley_points
 
-        removed_binary = self.line_remover.remove_lines(img=resized, visualize=False)
-        self.context.removed_binary = removed_binary
+        if removed_binary is None or valley_points_map is None:
+            raise ValueError("Pipeline did not produce required segmentation outputs")
 
+        # visualization is separated into experiments.segmentation.visualization.debug_visualizer
+        # Pipeline and algorithm modules do not call plotting directly.
         line_map = np.zeros_like(removed_binary)
 
-        grad_map = self.grad_map_nearest(removed_binary)
-
-        valley_points_map = self.judge_valley_point_nearest(
-            binary=removed_binary,
-            vector=grad_map,
-            min_theta=np.deg2rad(self.config.min_valley_theta_deg),
-        )
-        self.context.valley_points = valley_points_map
-
-        visualize_result(
-            removed_binary=removed_binary,
-            line_map=line_map,
-            valley_line_map=valley_points_map,
-        )
-
         return [
-            binary,
+            self.context.binary,
             removed_binary,
             valley_points_map,
         ]
@@ -235,20 +215,5 @@ class CharacterSegmenter:
         line_map: np.ndarray,
         valley_line_map: np.ndarray,
     ) -> None:
-        visualize_segmentation_result(
-            removed_binary=removed_binary,
-            line_map=line_map,
-            valley_line_map=valley_line_map,
-        )
-
-
-def main() -> None:
-    config = CharacterSegmentationConfig()
-
-    segmenter = CharacterSegmenter(config)
-
-    segmenter.run()
-
-
-if __name__ == "__main__":
-    main()
+        # kept for backwards compatibility but no-op; use debug_visualizer.visualize_context(context)
+        return None
