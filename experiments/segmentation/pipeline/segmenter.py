@@ -72,6 +72,10 @@ class CharacterSegmenter:
             valley_points_map,
         ]
 
+    """
+    legacy. I can use these someday
+    """
+
     def load_image(self) -> np.ndarray:
         image = cv2.imread(str(self.config.input_image_path))
 

@@ -33,7 +33,11 @@ def visualize_context(context: SegmentationContext) -> None:
         "selected_boundaries",
     ]
 
-    fig, axes = plt.subplots(1, len(titles), figsize=(4 * len(titles), 4))
+    fig, axes = plt.subplots(
+        len(titles),
+        1,
+        figsize=(8, 1.5 * len(titles)),
+    )
     if len(titles) == 1:
         axes = [axes]
 
@@ -99,5 +103,5 @@ def visualize_context(context: SegmentationContext) -> None:
     ax4.set_title("selected_boundaries")
     ax4.axis("off")
 
-    plt.tight_layout()
+    plt.tight_layout(pad=0.5)
     plt.show()

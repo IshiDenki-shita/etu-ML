@@ -4,12 +4,29 @@ from experiments.segmentation.candidate.graph_candidate_generator import (
     GraphCandidateGenerator,
 )
 from experiments.segmentation.context.segmentation_context import SegmentationContext
-from experiments.segmentation.pipeline.line_removal import LineRemover
+from experiments.segmentation.line_remover.line_removing import LineRemover
 from experiments.segmentation.preprocessing.preprocessor import preprocess_image
 from experiments.segmentation.selector.dp_selector import DPSelector
 from experiments.segmentation.valley.gradient_valley_detector import (
     GradientValleyDetector,
 )
+
+
+class CharacterSegmentationPipeline:
+    def __init__(self, config) -> None:
+        self._steps = [
+            PreprocessingStep(config.binary_threshold),
+            LineRemovalStep(),
+            ValleyDetectionStep(np.deg2rad(config.min_valley_theta_deg)),
+            CandidateGenerationStep(),
+            SelectorStep(),
+            CropStep(),
+        ]
+
+    def process(self, context: SegmentationContext) -> SegmentationContext:
+        for step in self._steps:
+            context = step.process(context)
+        return context
 
 
 class PreprocessingStep:
@@ -63,21 +80,4 @@ class CropStep:
     def process(self, context: SegmentationContext) -> SegmentationContext:
         if context.character_images is None:
             context.character_images = []
-        return context
-
-
-class CharacterSegmentationPipeline:
-    def __init__(self, config) -> None:
-        self._steps = [
-            PreprocessingStep(config.binary_threshold),
-            LineRemovalStep(),
-            ValleyDetectionStep(np.deg2rad(config.min_valley_theta_deg)),
-            CandidateGenerationStep(),
-            SelectorStep(),
-            CropStep(),
-        ]
-
-    def process(self, context: SegmentationContext) -> SegmentationContext:
-        for step in self._steps:
-            context = step.process(context)
         return context
