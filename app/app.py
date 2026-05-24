@@ -404,7 +404,7 @@ class CharacterSegmenter:
             ax.axis("off")
 
         plt.tight_layout()
-        plt.show()
+        #plt.show()
 
     def visualize_projection_shape(self, proj):
         import matplotlib.pyplot as plt
@@ -462,7 +462,7 @@ class CharacterSegmenter:
         plt.legend(unique.values(), unique.keys())
 
         plt.tight_layout()
-        plt.show()
+        #plt.show()
 
 
 class check_menu:
