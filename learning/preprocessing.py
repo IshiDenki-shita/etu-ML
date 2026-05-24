@@ -19,10 +19,10 @@ class main:
         self.out_label = "learning/dataset/etl_labels.npy"
         self.out_dict = "supports/chars_dict.json"
 
-        # 太字化用カーネル（太さ調整）
         self.kernel = np.ones((1, 1), np.uint8)
         self.angle = 20
-        self.dx = 10
+        self.dx = 0
+        self.scale = 1.0
 
     # ----------------------------------------------------
     # ① ラベル辞書を作成
@@ -49,9 +49,7 @@ class main:
 
         print("✔ chars_dict.json 保存完了")
 
-    # ----------------------------------------------------
-    # ② PNG を太くしてから NumPy 保存
-    # ----------------------------------------------------
+
     def preprocessing(self):
         all_files = []
         for d in self.etl_dirs:
@@ -69,12 +67,15 @@ class main:
             # PNG → グレースケール
             img = Image.open(f).convert("L").resize((64, 64))
 
-            #回転
-            img = img.rotate(random.randint(-self.angle,self.angle),expand=True,fillcolor=0)
-            img = img.resize((64, 64))
-
             #npに変換
             img = np.array(img, dtype=np.uint8)
+
+            #大きさ変更,回転
+            matrix = cv2.getRotationMatrix2D((32, 32), random.uniform(-self.angle, self.angle), random.uniform(self.scale, 1.0))
+            img = cv2.warpAffine(img, matrix, (64, 64), 
+                            flags=cv2.INTER_LINEAR, 
+                            borderMode=cv2.BORDER_CONSTANT, 
+                            borderValue=(0, 0, 0))
 
             #太さ調整
             img = cv2.dilate(img, self.kernel, iterations=1)
