@@ -14,7 +14,7 @@ class CNRConfig:
     erosion_kernel_size: int = 1
     erosion_iterations: int = 0
     # input/output
-    input_path: str = "photos/sample/cells/soboro.jpeg"
+    input_path: str = "photos/sample/cells/ebiten.jpeg"
     # contour vector
     cont_nighr_len: int = 10
     max_theta_thresh: np.float16 = np.deg2rad(3, dtype=np.float16)
@@ -24,50 +24,68 @@ class CNRConfig:
     target_theta_tolerance: np.float16 = np.deg2rad(3, dtype=np.float16)
     # line connection
     connect_dist_thresh: np.uint8 = np.uint8(100)
+    # flagment_removing
+    min_char_domain: np.uint8 = np.uint8(200)
 
 
 class ContourNoiseRemover:
     def __init__(self, config: CNRConfig):
         self.cfg = config
 
-    def run(self, image_path: str):
+    def run(self, image_path: str, visualize: bool = False):
         img = self.load_image(image_path)
 
+        return self.process(img=img, visualize=visualize)
+
+    def process(self, img: np.ndarray, visualize: bool = False):
         binary = self.preprocess(img)
 
         contours = self.detect_contours(binary)
 
         cont_vecs, contours = self.arrange_contour_vectors2(contours=contours)
 
-        direct_lines = self.detect_direct_line(cont_vecs=cont_vecs, contours=contours)
+        direct_lines = self.detect_direct_line(
+            cont_vecs=cont_vecs,
+            contours=contours,
+        )
 
         direct_lines = self.pick_needed_line(
-            direct_lines=direct_lines, target_theta=self.cfg.target_theta
+            direct_lines=direct_lines,
+            target_theta=self.cfg.target_theta,
         )
 
         connected_lines = self.connect_splitted_line(
-            straight_lines=direct_lines, binary_shape=binary.shape
+            straight_lines=direct_lines,
+            binary_shape=binary.shape,
         )
 
         line_map = self.draw_staraight_line(
-            binary=binary, straight_lines=connected_lines
-        )
-
-        self.visualize_result(
-            img=img,
             binary=binary,
-            contours=contours,
-            cont_vecs=cont_vecs,
-            horizontal_map=line_map,
+            straight_lines=connected_lines,
         )
 
-        removed = self.remove_noise_line(binary=binary, line_map=line_map)
+        if visualize:
+            self.visualize_result(
+                img=img,
+                binary=binary,
+                contours=contours,
+                cont_vecs=cont_vecs,
+                horizontal_map=line_map,
+            )
 
-        self.visualize_after_removed(
+        removed = self.remove_noise_line(
             binary=binary,
             line_map=line_map,
-            removed=removed,
         )
+
+        if visualize:
+            self.visualize_after_removed(
+                binary=binary,
+                line_map=line_map,
+                removed=removed,
+            )
+
+        return removed
 
     def load_image(self, image_path: str):
         img = cv2.imread(image_path)
@@ -275,7 +293,7 @@ class ContourNoiseRemover:
 
         return np.array(theta_diffs)
 
-    def pick_needed_line(self, direct_lines, target_theta: np.float16):
+    def pick_needed_line(self, direct_lines, target_theta: np.float16 = np.float16(0)):
         needed_lines = []
         for direct_line in direct_lines:
 
@@ -477,13 +495,37 @@ class ContourNoiseRemover:
 
         return ordered_map
 
-    def remove_noise_line(self, binary, line_map):
+    def remove_noise_line(self, binary: np.ndarray, line_map: np.ndarray):
 
-        contours, hierarchy = cv2.findContours(
-            line_map,
-            cv2.RETR_CCOMP,
-            cv2.CHAIN_APPROX_NONE,
+        # remove most part of line noise
+        contours, _ = cv2.findContours(
+            image=line_map, mode=cv2.RETR_CCOMP, method=cv2.CHAIN_APPROX_NONE
         )
+
+        half_way = self.remove_inside_contours(binary=binary, contours=contours)
+
+        # remove remaining part of line noise
+        contours, _ = cv2.findContours(
+            image=half_way, mode=cv2.RETR_CCOMP, method=cv2.CHAIN_APPROX_NONE
+        )
+
+        needless_contours = []
+
+        for contour in contours:
+            area = cv2.contourArea(contour=contour)
+
+            if area < self.cfg.min_char_domain:
+                needless_contours.append(contour)
+
+        removed = self.remove_inside_contours(
+            binary=half_way, contours=needless_contours
+        )
+
+        print(f"remove {len(needless_contours)} needless_contours")
+
+        return removed
+
+    def remove_inside_contours(self, binary, contours):
 
         mask = np.zeros_like(binary, dtype=np.uint8)
 
@@ -658,7 +700,7 @@ class ContourNoiseRemover:
 
         color_vis = np.zeros((h, w, 3), dtype=np.uint8)
 
-        rng = np.random.default_rng(5)
+        rng = np.random.default_rng(20)
 
         for contour in contours:
 
@@ -698,4 +740,7 @@ if __name__ == "__main__":
     config = CNRConfig()
 
     segmenter = ContourNoiseRemover(config=config)
-    segmenter.run(config.input_path)
+    removed = segmenter.run(
+        config.input_path,
+        visualize=True,
+    )

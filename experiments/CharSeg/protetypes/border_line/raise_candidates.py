@@ -1,18 +1,23 @@
-# python -m experiments.CharSeg.protetypes.border_line.raise_candidates
-
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Tuple
 
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import scipy
 from tqdm import tqdm
 
-from experiments.CharSeg.protetypes.LineNoise.DirectContour import (
-    ContourNoiseRemover,
-    CNRConfig,
+from experiments.CharSeg.protetypes.border_line.segmentation.context.segmentation_context import (
+    SegmentationContext,
+)
+from experiments.CharSeg.protetypes.border_line.segmentation.pipeline.line_removal import (
+    LineRemover,
+)
+from experiments.CharSeg.protetypes.border_line.segmentation.preprocessing.preprocessor import (
+    preprocess_image,
+)
+from experiments.CharSeg.protetypes.border_line.segmentation.visualization.visualizer import (
+    visualize_result as visualize_segmentation_result,
 )
 
 
@@ -32,10 +37,10 @@ class CharacterSegmentationConfig:
     # line remove
     line_theta_deg: float = 0.0
     line_theta_tolerance_deg: float = 5.0
-    line_min_length: int = 20
+    line_min_length: np.float16 = np.float16(20)
 
     # debug
-    save_debug_image: bool = True
+    save_debug_image: bool = False
 
 
 class CharacterSegmenter:
@@ -47,13 +52,8 @@ class CharacterSegmenter:
             exist_ok=True,
         )
 
-        cnr_config = CNRConfig(
-            target_theta=np.deg2rad(self.config.line_theta_deg),
-            target_theta_tolerance=np.deg2rad(self.config.line_theta_tolerance_deg),
-            min_length_thresh=self.config.line_min_length,
-        )
-
-        self.line_remover = ContourNoiseRemover(cnr_config)
+        self.line_remover = LineRemover()
+        self.context: SegmentationContext | None = None
 
     def run(self) -> List[np.ndarray]:
         print("画像分割開始")
@@ -61,12 +61,15 @@ class CharacterSegmenter:
         image = self.load_image()
         resized = self.resize_image(image)
 
-        binary = self.preprocess(resized)
+        self.context = SegmentationContext(original_image=resized)
 
-        removed_binary, line_map = self.remove_line_noise(
-            image=resized,
-            binary=binary,
-        )
+        binary = preprocess_image(resized, self.config.binary_threshold)
+        self.context.binary = binary
+
+        removed_binary = self.line_remover.remove_lines(img=resized, visualize=False)
+        self.context.removed_binary = removed_binary
+
+        line_map = np.zeros_like(removed_binary)
 
         grad_map = self.grad_map_nearest(removed_binary)
 
@@ -75,8 +78,9 @@ class CharacterSegmenter:
             vector=grad_map,
             min_theta=np.deg2rad(self.config.min_valley_theta_deg),
         )
+        self.context.valley_points = valley_points_map
 
-        self.visualize_result(
+        visualize_result(
             removed_binary=removed_binary,
             line_map=line_map,
             valley_line_map=valley_points_map,
@@ -113,71 +117,7 @@ class CharacterSegmenter:
         return resized
 
     def preprocess(self, image: np.ndarray) -> np.ndarray:
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-        blurred = cv2.GaussianBlur(
-            gray,
-            (3, 3),
-            0,
-        )
-
-        binary = cv2.threshold(
-            blurred,
-            self.config.binary_threshold,
-            255,
-            cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU,
-        )[1]
-
-        kernel = cv2.getStructuringElement(
-            cv2.MORPH_RECT,
-            (3, 3),
-        )
-
-        opened = cv2.morphologyEx(
-            binary,
-            cv2.MORPH_OPEN,
-            kernel,
-        )
-
-        return opened
-
-    def remove_line_noise(
-        self,
-        image: np.ndarray,
-        binary: np.ndarray,
-    ) -> np.ndarray:
-        contours = self.line_remover.detect_contours(binary)
-
-        cont_vecs, contours = self.line_remover.arrange_contour_vectors2(
-            contours=contours,
-        )
-
-        direct_lines = self.line_remover.detect_direct_line(
-            cont_vecs=cont_vecs,
-            contours=contours,
-        )
-
-        direct_lines = self.line_remover.pick_needed_line(
-            direct_lines=direct_lines,
-            target_theta=np.deg2rad(self.config.line_theta_deg),
-        )
-
-        connected_lines = self.line_remover.connect_splitted_line(
-            straight_lines=direct_lines,
-            binary_shape=binary.shape,
-        )
-
-        line_map = self.line_remover.draw_staraight_line(
-            binary=binary,
-            straight_lines=connected_lines,
-        )
-
-        removed = self.line_remover.remove_noise_line(
-            binary=binary,
-            line_map=line_map,
-        )
-
-        return removed, line_map
+        return preprocess_image(image, self.config.binary_threshold)
 
     def make_distance_map(self, binary: np.ndarray) -> np.ndarray:
         dist_map = scipy.ndimage.distance_transform_edt(binary > 0)
@@ -295,42 +235,11 @@ class CharacterSegmenter:
         line_map: np.ndarray,
         valley_line_map: np.ndarray,
     ) -> None:
-        fig, axes = plt.subplots(3, 1, figsize=(9, 6))
-
-        # =========================
-        # line removed binary
-        # =========================
-
-        axes[0].imshow(removed_binary, cmap="gray")
-        axes[0].set_title("Line Removed Binary")
-        axes[0].axis("off")
-
-        # =========================
-        # detected line map
-        # =========================
-
-        axes[1].imshow(line_map, cmap="gray")
-        axes[1].set_title("Detected Line Map")
-        axes[1].axis("off")
-
-        # =========================
-        # valley point scatter
-        # =========================
-
-        ys_valley, xs_valley = np.where(valley_line_map > 0)
-
-        axes[2].imshow(removed_binary, cmap="gray")
-        axes[2].scatter(xs_valley, ys_valley, s=1)
-        axes[2].set_title("Valley Point Scatter")
-        axes[2].axis("off")
-
-        plt.subplots_adjust(
-            hspace=0.02,
-            top=0.98,
-            bottom=0.02,
+        visualize_segmentation_result(
+            removed_binary=removed_binary,
+            line_map=line_map,
+            valley_line_map=valley_line_map,
         )
-
-        plt.show()
 
 
 def main() -> None:
