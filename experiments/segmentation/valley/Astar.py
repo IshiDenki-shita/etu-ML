@@ -1,89 +1,256 @@
 import heapq
-import cv2
-import numpy as np
-import matplotlib.pyplot as plt
+from dataclasses import dataclass
+from typing import List, Tuple
 
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
 from scipy.ndimage import distance_transform_edt
 
 # =========================================================
-# A*
+# Context
 # =========================================================
 
 
-def astar(cost_map, start, goal):
-    H, W = cost_map.shape
+@dataclass
+class AstarContext:
+    original: np.ndarray | None = None
+    binary: np.ndarray | None = None
+    distance_map: np.ndarray | None = None
+    cost_map: np.ndarray | None = None
+    path: np.ndarray | None = None
 
-    neighbors = [
-        (-1, 0),
-        (1, 0),
-        (0, -1),
-        (0, 1),
-        (-1, -1),
-        (-1, 1),
-        (1, -1),
-        (1, 1),
-    ]
 
-    pq = []
+# =========================================================
+# Fast A*
+# =========================================================
 
-    heapq.heappush(pq, (0, start))
 
-    came_from = {}
+class FastAstarSegmenter:
+    def process(self, context: AstarContext) -> AstarContext:
+        if context.binary is None:
+            raise ValueError("binary is required")
 
-    g_score = {start: 0}
+        context.distance_map = self._distance_map(context.binary)
 
-    while pq:
-        _, current = heapq.heappop(pq)
+        context.cost_map = self._cost_map(
+            binary=context.binary,
+            distance_map=context.distance_map,
+        )
 
-        if current == goal:
-            break
+        H, W = context.binary.shape
 
-        cy, cx = current
+        start_y = 0
+        start_x = W // 2
 
-        for dy, dx in neighbors:
-            ny = cy + dy
-            nx = cx + dx
+        goal_y = H - 1
+        goal_x = W // 2
 
-            if not (0 <= ny < H and 0 <= nx < W):
+        context.path = self._astar(
+            context.cost_map,
+            start_y,
+            start_x,
+            goal_y,
+            goal_x,
+        )
+
+        return context
+
+    # =====================================================
+    # Distance Map
+    # =====================================================
+
+    def _distance_map(self, binary: np.ndarray) -> np.ndarray:
+        binary_bool = binary > 0
+
+        dist = distance_transform_edt(~binary_bool)
+
+        return dist.astype(np.float32)
+
+    # =====================================================
+    # Cost Map
+    # =====================================================
+
+    def _cost_map(
+        self,
+        binary: np.ndarray,
+        distance_map: np.ndarray,
+    ) -> np.ndarray:
+        binary_bool = binary > 0
+
+        cost = 1.0 / (distance_map + 1e-3)
+
+        cost[binary_bool] = 1e6
+
+        return cost.astype(np.float32)
+
+    # =====================================================
+    # Heuristic (Octile Distance)
+    # =====================================================
+
+    def _heuristic(
+        self,
+        y,
+        x,
+        gy,
+        gx,
+    ):
+        dx = abs(gx - x)
+        dy = abs(gy - y)
+
+        return max(dx, dy) + (1.41421356 - 1.0) * min(dx, dy)
+
+    # =====================================================
+    # Optimized A*
+    # =====================================================
+
+    def _astar(
+        self,
+        cost_map: np.ndarray,
+        sy: int,
+        sx: int,
+        gy: int,
+        gx: int,
+    ):
+        H, W = cost_map.shape
+
+        INF = np.float32(1e30)
+
+        g_score = np.full((H, W), INF, dtype=np.float32)
+
+        visited = np.zeros((H, W), dtype=np.uint8)
+
+        parent_y = np.full((H, W), -1, dtype=np.int32)
+        parent_x = np.full((H, W), -1, dtype=np.int32)
+
+        g_score[sy, sx] = 0.0
+
+        pq = []
+
+        heapq.heappush(
+            pq,
+            (
+                0.0,
+                sy,
+                sx,
+            ),
+        )
+
+        neighbors = [
+            (-1, 0, 1.0),
+            (1, 0, 1.0),
+            (0, -1, 1.0),
+            (0, 1, 1.0),
+            (-1, -1, 1.41421356),
+            (-1, 1, 1.41421356),
+            (1, -1, 1.41421356),
+            (1, 1, 1.41421356),
+        ]
+
+        cost_local = cost_map
+        g_local = g_score
+        visited_local = visited
+
+        while pq:
+            _, cy, cx = heapq.heappop(pq)
+
+            # ============================================
+            # Skip duplicated node
+            # ============================================
+
+            if visited_local[cy, cx]:
                 continue
 
-            move_cost = cost_map[ny, nx]
+            visited_local[cy, cx] = 1
 
-            if dy != 0 and dx != 0:
-                move_cost *= 1.414
+            # ============================================
+            # Goal
+            # ============================================
 
-            tentative = g_score[current] + move_cost
+            if cy == gy and cx == gx:
+                break
 
-            neighbor = (ny, nx)
+            current_g = g_local[cy, cx]
 
-            if neighbor not in g_score or tentative < g_score[neighbor]:
-                g_score[neighbor] = tentative
+            # ============================================
+            # Expand
+            # ============================================
 
-                h = abs(goal[0] - ny) + abs(goal[1] - nx)
+            for dy, dx, move_cost in neighbors:
+                ny = cy + dy
+                nx = cx + dx
 
-                f = tentative + h
+                if ny < 0 or ny >= H:
+                    continue
 
-                heapq.heappush(pq, (f, neighbor))
+                if nx < 0 or nx >= W:
+                    continue
 
-                came_from[neighbor] = current
+                if visited_local[ny, nx]:
+                    continue
 
-    # reconstruct
-    path = []
+                tentative = current_g + cost_local[ny, nx] * move_cost
 
-    current = goal
+                if tentative < g_local[ny, nx]:
+                    g_local[ny, nx] = tentative
 
-    while current in came_from:
-        path.append(current)
-        current = came_from[current]
+                    parent_y[ny, nx] = cy
+                    parent_x[ny, nx] = cx
 
-    path.append(start)
+                    h = self._heuristic(
+                        ny,
+                        nx,
+                        gy,
+                        gx,
+                    )
 
-    path.reverse()
+                    f = tentative + h
 
-    return path
+                    heapq.heappush(
+                        pq,
+                        (
+                            f,
+                            ny,
+                            nx,
+                        ),
+                    )
+
+        # =================================================
+        # Reconstruct
+        # =================================================
+
+        path = []
+
+        cy = gy
+        cx = gx
+
+        while not (cy == sy and cx == sx):
+            path.append((cy, cx))
+
+            py = parent_y[cy, cx]
+            px = parent_x[cy, cx]
+
+            if py == -1:
+                break
+
+            cy = py
+            cx = px
+
+        path.append((sy, sx))
+
+        path.reverse()
+
+        return np.array(path)
 
 
-img = cv2.imread("photos/sample/cells/chikuten.jpeg", cv2.IMREAD_GRAYSCALE)
+# =========================================================
+# Main
+# =========================================================
+
+img = cv2.imread(
+    "photos/sample/cells/chikuten.jpeg",
+    cv2.IMREAD_GRAYSCALE,
+)
 
 if img is None:
     raise ValueError("画像を取得できませんでした。")
@@ -95,43 +262,44 @@ _, binary = cv2.threshold(
     cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU,
 )
 
-binary_bool = binary > 0
+context = AstarContext(
+    original=img,
+    binary=binary,
+)
 
-dist = distance_transform_edt(~binary_bool)
-dist = dist.astype(np.float32)
+segmenter = FastAstarSegmenter()
 
-# 谷中央を低コストにする
-cost = 1.0 / (dist + 1e-3)
+context = segmenter.process(context)
 
-# 文字内部は超高コスト
-cost[binary_bool] = 1e6
+# =========================================================
+# Visualization
+# =========================================================
 
-H, W = binary.shape
+vis = cv2.cvtColor(
+    context.original,
+    cv2.COLOR_GRAY2BGR,
+)
 
-start = (H // 2, 0)
-goal = (H // 2, W - 1)
-
-path = astar(cost, start, goal)
-
-
-vis = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-
-for y, x in path:
+for y, x in context.path:
     vis[y, x] = (0, 0, 255)
 
-fig, axes = plt.subplots(1, 4, figsize=(16, 4))
+fig, axes = plt.subplots(
+    4,
+    1,
+    figsize=(8, 8),
+)
 
-axes[0].imshow(img, cmap="gray")
+axes[0].imshow(context.original, cmap="gray")
 axes[0].set_title("Original")
 
-axes[1].imshow(binary, cmap="gray")
+axes[1].imshow(context.binary, cmap="gray")
 axes[1].set_title("Binary")
 
-axes[2].imshow(dist, cmap="jet")
+axes[2].imshow(context.distance_map, cmap="jet")
 axes[2].set_title("Distance Transform")
 
 axes[3].imshow(vis[..., ::-1])
-axes[3].set_title("A* Path")
+axes[3].set_title("Fast A*")
 
 for ax in axes:
     ax.axis("off")
