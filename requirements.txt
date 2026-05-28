@@ -9,6 +9,7 @@ torchvision==0.17.2
 torchaudio==2.2.2
 
 opencv-python==4.9.0.80
+tqdm
 matplotlib==3.8.4
 requests==2.31.0
 python-Levenshtein==0.25.1

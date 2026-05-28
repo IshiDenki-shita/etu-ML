@@ -8,17 +8,17 @@ Prerequisites
 Quick checks
 ```bash
 # show python in venv
-/Users/matsukou/Desktop/projects/ETU/etu-ML/.venv/bin/python -V
+.venv/bin/python -V
 ```
 
 Run pipeline (no GUI)
 ```bash
-MPLBACKEND=Agg /Users/matsukou/Desktop/projects/ETU/etu-ML/.venv/bin/python -m experiments.segmentation.main
+MPLBACKEND=Agg .venv/bin/python -m experiments.segmentation.main
 ```
 
 Run pipeline and show debug visualization in same process
 ```bash
-/Users/matsukou/Desktop/projects/ETU/etu-ML/.venv/bin/python -c "from experiments.segmentation.pipeline.segmenter import CharacterSegmentationConfig, CharacterSegmenter; from experiments.segmentation.visualization.debug_visualizer import visualize_context; s=CharacterSegmenter(CharacterSegmentationConfig()); s.run(); visualize_context(s.context)"
+.venv/bin/python -c "from experiments.segmentation.pipeline.segmenter import CharacterSegmentationConfig, CharacterSegmenter; from experiments.segmentation.visualization.debug_visualizer import visualize_context; s=CharacterSegmenter(CharacterSegmentationConfig()); s.run(); visualize_context(s.context)"
 ```
 
 Run pipeline programmatically then visualize later
@@ -29,7 +29,7 @@ Run pipeline programmatically then visualize later
 
 REPL / step debugging examples
 ```bash
-/Users/matsukou/Desktop/projects/ETU/etu-ML/.venv/bin/python -c "from experiments.segmentation.pipeline.character_segmentation_pipeline import PreprocessingStep; from experiments.segmentation.context.segmentation_context import SegmentationContext; import cv2; img=cv2.imread('photos/sample/cells/ebiten.jpeg'); ctx=SegmentationContext(original_image=img); ctx=PreprocessingStep(0).process(ctx); print(type(ctx.binary), hasattr(ctx,'binary'))"
+.venv/bin/python -c "from experiments.segmentation.pipeline.character_segmentation_pipeline import PreprocessingStep; from experiments.segmentation.context.segmentation_context import SegmentationContext; import cv2; img=cv2.imread('photos/sample/cells/ebiten.jpeg'); ctx=SegmentationContext(original_image=img); ctx=PreprocessingStep(0).process(ctx); print(type(ctx.binary), hasattr(ctx,'binary'))"
 ```
 
 Files of interest
