@@ -6,6 +6,8 @@ from scipy.spatial import cKDTree
 import cv2
 import numpy as np
 
+from experiments.CharSeg.protetypes.context import Context
+
 
 @dataclass
 class CNRConfig:
@@ -13,8 +15,10 @@ class CNRConfig:
     open_kernel_size: int = 3
     erosion_kernel_size: int = 1
     erosion_iterations: int = 0
-    # input/output
-    input_path: str = "photos/sample/cells/soboro.jpeg"
+    # line remove
+    line_theta_deg: float = 0.0
+    line_theta_tolerance_deg: float = 5.0
+    line_min_length: int = 20
     # contour vector
     cont_nighr_len: int = 10
     max_theta_thresh: np.float16 = np.deg2rad(3, dtype=np.float16)
@@ -27,11 +31,10 @@ class CNRConfig:
 
 
 class ContourNoiseRemover:
-    def __init__(self, config: CNRConfig):
-        self.cfg = config
+    cfg = CNRConfig()
 
-    def run(self, image_path: str):
-        img = self.load_image(image_path)
+    def process(self, context: Context):
+        img = self.load_image(context.image_path)
 
         binary = self.preprocess(img)
 
@@ -61,13 +64,13 @@ class ContourNoiseRemover:
             horizontal_map=line_map,
         )
 
-        removed = self.remove_noise_line(binary=binary, line_map=line_map)
+        context.line_removed = self.remove_noise_line(binary=binary, line_map=line_map)
 
-        self.visualize_after_removed(
-            binary=binary,
-            line_map=line_map,
-            removed=removed,
-        )
+        # self.visualize_after_removed(
+        #     binary=binary,
+        #     line_map=line_map,
+        #     removed=,
+        # )
 
     def load_image(self, image_path: str):
         img = cv2.imread(image_path)
@@ -692,10 +695,3 @@ class ContourNoiseRemover:
         )
 
         plt.show()
-
-
-if __name__ == "__main__":
-    config = CNRConfig()
-
-    segmenter = ContourNoiseRemover(config=config)
-    segmenter.run(config.input_path)
