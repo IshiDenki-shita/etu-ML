@@ -15,10 +15,7 @@ class CNRConfig:
     open_kernel_size: int = 3
     erosion_kernel_size: int = 1
     erosion_iterations: int = 0
-    # line remove
-    line_theta_deg: float = 0.0
-    line_theta_tolerance_deg: float = 5.0
-    line_min_length: int = 20
+
     # contour vector
     cont_nighr_len: int = 10
     max_theta_thresh: np.float16 = np.deg2rad(3, dtype=np.float16)
@@ -34,11 +31,8 @@ class ContourNoiseRemover:
     cfg = CNRConfig()
 
     def process(self, context: Context):
-        img = self.load_image(context.image_path)
-
-        binary = self.preprocess(img)
-
-        contours = self.detect_contours(binary)
+        binary = context.preprocessed
+        contours = self.detect_contours(binary=binary)
 
         cont_vecs, contours = self.arrange_contour_vectors2(contours=contours)
 
@@ -56,13 +50,13 @@ class ContourNoiseRemover:
             binary=binary, straight_lines=connected_lines
         )
 
-        self.visualize_result(
-            img=img,
-            binary=binary,
-            contours=contours,
-            cont_vecs=cont_vecs,
-            horizontal_map=line_map,
-        )
+        # self.visualize_result(
+        #     img=img,
+        #     binary=binary,
+        #     contours=contours,
+        #     cont_vecs=cont_vecs,
+        #     horizontal_map=line_map,
+        # )
 
         context.line_removed = self.remove_noise_line(binary=binary, line_map=line_map)
 
@@ -71,37 +65,6 @@ class ContourNoiseRemover:
         #     line_map=line_map,
         #     removed=,
         # )
-
-    def load_image(self, image_path: str):
-        img = cv2.imread(image_path)
-
-        if img is None:
-            raise ValueError(f"failed to load image: {image_path}")
-
-        return img
-
-    def preprocess(self, img):
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-
-        open_kernel = np.ones(
-            (self.cfg.open_kernel_size, self.cfg.open_kernel_size), np.uint8
-        )
-
-        binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, open_kernel)
-
-        if self.cfg.erosion_iterations > 0:
-            erosion_kernel = np.ones(
-                (self.cfg.erosion_kernel_size, self.cfg.erosion_kernel_size)
-            )
-
-            binary = cv2.erode(
-                binary,
-                erosion_kernel,
-                iterations=self.cfg.erosion_iterations,  # for some times
-            )
-
-        return binary
 
     def detect_contours(self, binary):
 

@@ -5,18 +5,40 @@ from tqdm import tqdm
 import scipy
 from typing import Tuple
 
+from experiments.CharSeg.protetypes.context import Context
+from experiments.CharSeg.protetypes.GenCandidates.ConnectLine import 
+
 """
 simple grad and 3x3 window
 """
 
+
 @dataclass
 class GradSimpleConfig:
-    
+    grad_kernel_size = 2  # some config values will be here
+
 
 class GradSimple:
+    def __init__(self):
+        self.config = GradSimpleConfig()
 
-    def find_valley_line_3x3(self, heat_map: np.ndarray) -> np.ndarray:
+    def process(self, context: Context):
+        line_removed = context.line_removed
+
+        if line_removed is None:
+            raise ValueError("contextのline_removedがNoneです。")
+
+        valley_points_map = self.find_valley_line_3x3(line_removed)
+        context.candidates = self.raise_candidates(valley_points_map)
+
+    def find_valley_line_3x3(self, binary: np.ndarray) -> np.ndarray:
         print("start finding valley line")
+
+        heat_map = scipy.ndimage.distance_transform_edt(
+            input=~binary,
+            return_distances=False,
+            return_indices=True,
+        )
 
         buf_map = heat_map.copy()
         ksize = self.config.grad_kernel_size
@@ -45,7 +67,6 @@ class GradSimple:
 
         return valley_points_map
 
-
     def judge_valley_point_3x3(self, neighor: np.ndarray) -> bool:
         """
         return if the pixel is the bottom point of valley
@@ -63,7 +84,6 @@ class GradSimple:
             return True
         else:
             return False
-
 
     def neighor_grad_bin_3x3(
         self, neighor: np.ndarray, ksize: int
@@ -85,3 +105,8 @@ class GradSimple:
         x += np.sum(left_and_right * neighor)
 
         return x, np.int8(y)
+
+    def raise_candidates(self, valley_points_map: np.ndarray):
+        candidates_map = np.zeros_like(valley_points_map)
+        ...
+        return candidates_map

@@ -19,15 +19,21 @@ class GradNearestConfig:
 
 
 class GradNearest:
-    def __init__(self, config: GradNearestConfig):
-        self.config = config
+    def __init__(self):
+        self.config = GradNearestConfig()
 
     def process(self, context: Context):
-        vectors = self.vector_map_nearest(binary=context.line_removed)
+
+        line_removed = context.line_removed
+
+        if line_removed is None:
+            raise ValueError("contextのline_removedがNoneです。")
+
+        vectors = self.vector_map_nearest(line_removed)
         valley_point_map = self.judge_valley_point_nearest(
-            binary=context.resized, vectors=vectors
+            binary=line_removed, vectors=vectors
         )
-        context.candidates = con  # raising borderline candidates is here
+        context.candidates = self.raise_candidates(valley_point_map)
 
     def vector_map_nearest(self, binary: np.ndarray):
         if binary is None:
@@ -92,3 +98,10 @@ class GradNearest:
         print(f"{count} valley points detected")
 
         return valley_point_map
+
+    def raise_candidates(self, valley_points_map: np.ndarray):
+        candidates_map = np.zeros_like(valley_points_map)
+
+        # raising borderline candidates is here
+        ...
+        return candidates_map

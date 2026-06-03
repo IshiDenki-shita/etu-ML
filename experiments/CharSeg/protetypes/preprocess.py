@@ -26,7 +26,7 @@ class Preprocesser:
         buf = self.load_image()
         buf = self.resize_image(image=buf)
         buf = self.binarize(image=buf)
-        context.resized = buf
+        context.preprocessed = buf
 
     def load_image(self) -> np.ndarray:
         image = cv2.imread(str(self.image_path))
