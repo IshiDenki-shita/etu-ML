@@ -1,4 +1,5 @@
-# python -m experiments.CharSeg.protetypes.border_line.raise_candidates
+# cd /Users/matsukou/Desktop/projects/ETU/etu-ML
+# python -m experiments.CharSeg.protetypes.app
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,8 +22,6 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-logger = logging.getLogger(__name__)
-
 
 def setup_logging(enable_logging: bool, log_level: int) -> None:
     if not enable_logging:
@@ -41,16 +40,10 @@ class CharacterSegmentationConfig:
     input_image_path: Path = Path("photos/sample/cells/ebiten.jpeg")
     output_dir: Path = Path("experiments/CharSeg/outputs")
 
-    # line remove
-    line_theta_deg: float = 0.0
-    line_theta_tolerance_deg: float = 5.0
-    line_min_length: int = 20
-
     # debug
     save_debug_image: bool = True
     enable_logging: bool = True
     log_level: int = logging.INFO
-    show_progress: bool = True
 
 
 class CharacterSegmenter:
@@ -64,10 +57,10 @@ class CharacterSegmenter:
 
         self.context = Context()
         self.preprocesser = Preprocesser()
-        self.line_remover = LineNoiseRemover()
+        self.line_remover = LineNoiseRemover(debug=True)
         self.candidate = GradNearest()
         self.dpselecter = DPselecter()
-        self.visualizer = Visualizer(enabled=True)
+        self.visualizer = Visualizer(debug=True)
 
         setup_logging(
             enable_logging=config.enable_logging,

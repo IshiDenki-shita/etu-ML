@@ -19,34 +19,14 @@ class visualizationConfig:
 
 
 class Visualizer:
-    def __init__(self, enabled: bool = True) -> None:
-        self.config = visualizationConfig(enabled=enabled)
-
-    def _overlay_mask(
-        self,
-        ax,
-        base_image: np.ndarray,
-        mask: np.ndarray | None,
-        cmap: str,
-    ) -> None:
-        ax.imshow(base_image, cmap="gray")
-
-        if mask is None:
-            return
-
-        masked = np.ma.masked_where(mask == 0, mask)
-
-        ax.imshow(
-            masked,
-            cmap=cmap,
-            alpha=0.6,
-        )
+    def __init__(self, debug: bool = True) -> None:
+        self.config = visualizationConfig(enabled=debug)
 
     def process(self, context: Context):
+        logging.info("結果を表示します。（共通項目）")
+
         if not self.config.enabled:
             return
-
-        logging.info("結果を表示します。（共通項目）")
 
         fig, axes = plt.subplots(
             nrows=4,
@@ -111,3 +91,23 @@ class Visualizer:
         )
         fig.canvas.manager.set_window_title("Character Segmentation Visualization")
         plt.show()
+
+    def _overlay_mask(
+        self,
+        ax,
+        base_image: np.ndarray,
+        mask: np.ndarray | None,
+        cmap: str,
+    ) -> None:
+        ax.imshow(base_image, cmap="gray")
+
+        if mask is None:
+            return
+
+        masked = np.ma.masked_where(mask == 0, mask)
+
+        ax.imshow(
+            masked,
+            cmap=cmap,
+            alpha=0.6,
+        )

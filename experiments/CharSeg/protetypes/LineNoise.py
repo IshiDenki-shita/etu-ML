@@ -33,6 +33,9 @@ class LNRConfig:
 class LineNoiseRemover:
     cfg = LNRConfig()
 
+    def __init__(self, debug: bool = False):
+        self.debug = debug
+
     def process(self, context: Context):
         logging.info("ホワイトボードのマス目の線を取り除きます。")
         binary = context.preprocessed
@@ -54,6 +57,12 @@ class LineNoiseRemover:
         )
 
         context.line_removed = self.remove_noise_line(binary=binary, line_map=line_map)
+        self.visualize(
+            binary=binary,
+            contours=contours,
+            cont_vecs=cont_vecs,
+            line_removed=context.line_removed,
+        )
 
     def detect_contours(self, binary):
 
@@ -457,33 +466,20 @@ class LineNoiseRemover:
 
         return removed
 
-    def visualize_result(
+    def visualize(
         self,
-        img: np.ndarray,
         binary: np.ndarray,
         contours: List[np.ndarray],
         cont_vecs: List,
-        horizontal_map: np.ndarray,
+        line_removed: np.ndarray,
         scale: int = 8,
-    ):
-        """
-        visualize:
-        1. binary
-        2. contour only
-        3. contour + tangent vector + detected horizontal pixels
-        """
+    ) -> None:
+        if not self.debug:
+            return
 
         import matplotlib.pyplot as plt
 
-        # =========================
-        # image1: binary
-        # =========================
-        binary_vis = binary.copy()
-
-        # =========================
-        # image2: contour only
-        # =========================
-        contour_vis = cv2.cvtColor(binary * 255, cv2.COLOR_GRAY2BGR)
+        contour_vis = cv2.cvtColor(binary.copy(), cv2.COLOR_GRAY2BGR)
 
         cv2.drawContours(
             contour_vis,
@@ -493,26 +489,16 @@ class LineNoiseRemover:
             thickness=1,
         )
 
-        # =========================
-        # image3: full visualization
-        # =========================
-        vis = contour_vis.copy()
+        tangent_vis = contour_vis.copy()
 
-        # tangent vector描画
-        for i, tangent_vecs in enumerate(cont_vecs):
-
-            contour = contours[i]
-
+        for contour, tangent_vecs in zip(contours, cont_vecs):
             for j, (vx, vy) in enumerate(tangent_vecs):
-
                 x, y = contour[j % len(contour)][0]
 
                 norm = np.hypot(vx, vy)
-
                 if norm == 0:
                     continue
 
-                # normalize
                 vx = vx / norm
                 vy = vy / norm
 
@@ -520,7 +506,7 @@ class LineNoiseRemover:
                 ey = int(y + vy * scale)
 
                 cv2.arrowedLine(
-                    vis,
+                    tangent_vis,
                     (x, y),
                     (ex, ey),
                     (255, 0, 0),
@@ -528,122 +514,38 @@ class LineNoiseRemover:
                     tipLength=0.2,
                 )
 
-        # horizontal pixel を赤で重ねる
-        vis[horizontal_map > 0] = (0, 0, 255)
-
-        # =========================
-        # matplotlib表示
-        # =========================
-
         dpi = 100
         h, w = binary.shape
 
-        fig_w = w / dpi
-        fig_h = h / dpi
-
         fig, axes = plt.subplots(
-            3,
+            4,
             1,
-            figsize=(fig_w, fig_h * 3),
+            figsize=(w / dpi, h / dpi * 4),
             dpi=dpi,
         )
 
-        # binary
-        axes[0].imshow(binary_vis, cmap="gray")
-        axes[0].set_title("Binary")
-        axes[0].axis("off")
-
-        # contour only
-        axes[1].imshow(cv2.cvtColor(contour_vis, cv2.COLOR_BGR2RGB))
-        axes[1].set_title("Contour")
-        axes[1].axis("off")
-
-        # full visualization
-        axes[2].imshow(cv2.cvtColor(vis, cv2.COLOR_BGR2RGB))
-        axes[2].set_title("Contour + Tangent + Detection")
-        axes[2].axis("off")
-
-        plt.subplots_adjust(
-            left=0,
-            right=1,
-            top=0.98,
-            bottom=0.02,
-            hspace=0.1,
-        )
-
-        plt.show()
-
-    def visualize_after_removed(
-        self,
-        binary: np.ndarray,
-        line_map: np.ndarray,
-        removed: np.ndarray,
-    ):
-
-        import matplotlib.pyplot as plt
-
-        dpi = 100
-        h, w = binary.shape
-
-        fig_w = w / dpi
-        fig_h = h / dpi
-
-        fig, axes = plt.subplots(
-            3,
-            1,
-            figsize=(fig_w, fig_h * 3),
-            dpi=dpi,
-        )
-
-        # =========================
-        # image1: original binary
-        # =========================
         axes[0].imshow(binary, cmap="gray")
         axes[0].set_title("Binary")
         axes[0].axis("off")
 
-        # =========================
-        # image2: detected contours with different colors
-        # =========================
-        contours, _ = cv2.findContours(
-            line_map.astype(np.uint8),
-            cv2.RETR_LIST,
-            cv2.CHAIN_APPROX_NONE,
-        )
-
-        color_vis = np.zeros((h, w, 3), dtype=np.uint8)
-
-        rng = np.random.default_rng(5)
-
-        for contour in contours:
-
-            color = rng.integers(0, 255, size=3).tolist()
-
-            cv2.drawContours(
-                color_vis,
-                [contour],
-                contourIdx=-1,
-                color=color,
-                thickness=1,
-            )
-
-        axes[1].imshow(cv2.cvtColor(color_vis, cv2.COLOR_BGR2RGB))
-        axes[1].set_title("Detected Lines")
+        axes[1].imshow(cv2.cvtColor(tangent_vis, cv2.COLOR_BGR2RGB))
+        axes[1].set_title("Contours + Tangent Vectors")
         axes[1].axis("off")
 
-        # =========================
-        # image3: removed result
-        # =========================
-        axes[2].imshow(removed, cmap="gray")
-        axes[2].set_title("After Line Removal")
+        axes[2].imshow(cv2.cvtColor(contour_vis, cv2.COLOR_BGR2RGB))
+        axes[2].set_title("Whiteboard Contours")
         axes[2].axis("off")
+
+        axes[3].imshow(line_removed, cmap="gray")
+        axes[3].set_title("After Line Removal")
+        axes[3].axis("off")
 
         plt.subplots_adjust(
             left=0,
             right=1,
             top=0.98,
             bottom=0.02,
-            hspace=0.1,
+            hspace=0.05,
         )
 
         plt.show()

@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 import numpy as np
 
@@ -15,6 +15,9 @@ class Context:
     # line removing
     line_suspect: Optional[np.ndarray] = None
     line_removed: Optional[np.ndarray] = None
-
-    candidates: Optional[np.ndarray] = None
-    selected: Optional[np.ndarray] = None
+    # raising borderline candidates
+    candidates: Optional[List[np.ndarray]] = None
+    # selecting borderline
+    selected: Optional[List[np.ndarray]] = None
+    # cropped images
+    crops: Optional[List[np.ndarray]] = None
