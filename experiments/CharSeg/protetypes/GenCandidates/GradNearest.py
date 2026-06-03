@@ -1,5 +1,6 @@
 # play ground for calculating gradient
 
+import logging
 from dataclasses import dataclass
 from tqdm import tqdm
 import numpy as np
@@ -23,6 +24,7 @@ class GradNearest:
         self.config = GradNearestConfig()
 
     def process(self, context: Context):
+        logging.info("最近点までの方向ベクトルを用いて分割境界線候補を列挙します。")
 
         line_removed = context.line_removed
 

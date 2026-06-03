@@ -1,3 +1,4 @@
+import logging
 from typing import List, Tuple
 from dataclasses import dataclass
 
@@ -8,9 +9,11 @@ import numpy as np
 
 from experiments.CharSeg.protetypes.context import Context
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
-class CNRConfig:
+class LNRConfig:
     binary_threshhold: int = 128
     open_kernel_size: int = 3
     erosion_kernel_size: int = 1
@@ -27,44 +30,30 @@ class CNRConfig:
     connect_dist_thresh: np.uint8 = np.uint8(100)
 
 
-class ContourNoiseRemover:
-    cfg = CNRConfig()
+class LineNoiseRemover:
+    cfg = LNRConfig()
 
     def process(self, context: Context):
+        logging.info("ホワイトボードのマス目の線を取り除きます。")
         binary = context.preprocessed
+
+        if binary is None:
+            raise ValueError("contextのpreorocessedがNoneです。")
+
         contours = self.detect_contours(binary=binary)
-
         cont_vecs, contours = self.arrange_contour_vectors2(contours=contours)
-
         direct_lines = self.detect_direct_line(cont_vecs=cont_vecs, contours=contours)
-
         direct_lines = self.pick_needed_line(
             direct_lines=direct_lines, target_theta=self.cfg.target_theta
         )
-
         connected_lines = self.connect_splitted_line(
             straight_lines=direct_lines, binary_shape=binary.shape
         )
-
         line_map = self.draw_staraight_line(
             binary=binary, straight_lines=connected_lines
         )
 
-        # self.visualize_result(
-        #     img=img,
-        #     binary=binary,
-        #     contours=contours,
-        #     cont_vecs=cont_vecs,
-        #     horizontal_map=line_map,
-        # )
-
         context.line_removed = self.remove_noise_line(binary=binary, line_map=line_map)
-
-        # self.visualize_after_removed(
-        #     binary=binary,
-        #     line_map=line_map,
-        #     removed=,
-        # )
 
     def detect_contours(self, binary):
 

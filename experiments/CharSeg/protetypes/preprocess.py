@@ -2,6 +2,7 @@
 Preprocess (get, resize, binarize, morphorogy)
 """
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
@@ -22,6 +23,7 @@ class Preprocesser:
         self.config = PreprocesserConfig()
 
     def process(self, context: Context):
+        logging.info("画像の取得、リサイズ、2値化、ノイズ除去を行います。")
         self.image_path = context.image_path
         buf = self.load_image()
         buf = self.resize_image(image=buf)
