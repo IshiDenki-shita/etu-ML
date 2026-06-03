@@ -67,7 +67,7 @@ class CharacterSegmenter:
         self.line_remover = LineNoiseRemover()
         self.candidate = GradNearest()
         self.dpselecter = DPselecter()
-        self.visualizer = Visualizer()
+        self.visualizer = Visualizer(enabled=True)
 
         setup_logging(
             enable_logging=config.enable_logging,

@@ -6,6 +6,7 @@ from tqdm import tqdm
 import numpy as np
 import scipy
 from typing import Tuple
+import matplotlib.pyplot as plt
 
 from experiments.CharSeg.protetypes.context import Context
 
@@ -16,12 +17,13 @@ nearest true pixel vector
 
 @dataclass
 class GradNearestConfig:
-    min_theta: np.float16 = np.float16(105.0)
+    min_theta: np.float16 = np.deg2rad(105.0, dtype=np.float16)
 
 
 class GradNearest:
-    def __init__(self):
+    def __init__(self, debug: bool = True):
         self.config = GradNearestConfig()
+        self.show_debug = debug
 
     def process(self, context: Context):
         logging.info("最近点までの方向ベクトルを用いて分割境界線候補を列挙します。")
@@ -35,7 +37,66 @@ class GradNearest:
         valley_point_map = self.judge_valley_point_nearest(
             binary=line_removed, vectors=vectors
         )
-        context.candidates = self.raise_candidates(valley_point_map)
+        candidates_map = self.raise_candidates(valley_point_map)
+        context.candidates = candidates_map
+
+        self.visualize(
+            line_removed=line_removed,
+            valley_point_map=valley_point_map,
+            candidates_map=candidates_map,
+        )
+
+    def visualize(
+        self,
+        line_removed: np.ndarray,
+        valley_point_map: np.ndarray,
+        candidates_map: np.ndarray,
+    ) -> None:
+        if not self.show_debug:
+            return
+
+        fig, axes = plt.subplots(
+            nrows=3,
+            ncols=1,
+            figsize=(8, 8),
+            constrained_layout=False,
+        )
+
+        axes[0].imshow(line_removed, cmap="gray")
+        axes[0].set_title("Line Removed")
+        axes[0].axis("off")
+
+        axes[1].imshow(line_removed, cmap="gray")
+
+        ys, xs = np.where(valley_point_map > 0)
+        axes[1].scatter(
+            xs,
+            ys,
+            c="red",
+            s=4,
+            marker="o",
+        )
+        axes[1].set_title("Valley Points")
+        axes[1].axis("off")
+
+        axes[2].imshow(line_removed, cmap="gray")
+        axes[2].imshow(
+            np.ma.masked_where(candidates_map == 0, candidates_map),
+            cmap="Blues",
+            alpha=0.6,
+        )
+        axes[2].set_title("Candidates")
+        axes[2].axis("off")
+
+        fig.subplots_adjust(
+            left=0.02,
+            right=0.98,
+            top=0.98,
+            bottom=0.02,
+            hspace=0.03,
+        )
+
+        plt.show()
 
     def vector_map_nearest(self, binary: np.ndarray):
         if binary is None:
@@ -60,7 +121,7 @@ class GradNearest:
         vx = nearest_x - xx
         vy = nearest_y - yy
 
-        vectors = np.stack([vx, vy], axis=0).astype(np.float16)
+        vectors = np.stack([vx, vy], axis=0).astype(np.float64)
         norm = np.linalg.norm(vectors, axis=0, keepdims=True)
         vectors /= norm + np.float16(1e-6)
 
@@ -105,5 +166,6 @@ class GradNearest:
         candidates_map = np.zeros_like(valley_points_map)
 
         # raising borderline candidates is here
+        # note: the candidates_map has to be made as the mask image of border lines
         ...
         return candidates_map
