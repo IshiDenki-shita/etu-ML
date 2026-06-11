@@ -5,10 +5,14 @@ common visualization of 5 picture along five process
 
 import logging
 from dataclasses import dataclass
-import matplotlib.pyplot as plt
 
+import matplotlib.pyplot as plt
 import numpy as np
 
+from experiments.CharSeg.protetypes.GenCandidates.ConnectLine import (
+    Borderline,
+    borderline_to_points,
+)
 from experiments.CharSeg.protetypes.context import Context
 
 
@@ -53,32 +57,29 @@ class Visualizer:
             (
                 "Candidate Lines",
                 context.line_removed,
-                getattr(context, "candidates", None),
+                context.candidates,
                 "Reds",
             ),
             (
                 "Selected Lines",
                 context.line_removed,
-                getattr(context, "selected", None),
+                context.selected,
                 "Blues",
             ),
         ]
 
-        for ax, (title, image, mask, cmap) in zip(axes, images):
+        for ax, (title, image, overlay, cmap) in zip(axes, images):
             if image is None:
                 ax.set_title(f"{title} (None)")
                 ax.axis("off")
                 continue
 
-            if mask is None:
+            if overlay is None:
                 ax.imshow(image, cmap="gray")
+            elif isinstance(overlay, list):
+                self._overlay_borderlines(ax, image, overlay, cmap)
             else:
-                self._overlay_mask(
-                    ax,
-                    image,
-                    mask,
-                    cmap,
-                )
+                self._overlay_mask(ax, image, overlay, cmap)
             ax.set_title(title)
             ax.axis("off")
 
@@ -91,6 +92,31 @@ class Visualizer:
         )
         fig.canvas.manager.set_window_title("Character Segmentation Visualization")
         plt.show()
+
+    def _overlay_borderlines(
+        self,
+        ax,
+        base_image: np.ndarray,
+        borderlines: list[Borderline],
+        cmap_name: str,
+    ) -> None:
+        ax.imshow(base_image, cmap="gray")
+        if not borderlines:
+            return
+
+        cmap = plt.get_cmap(cmap_name)
+        colors = cmap(np.linspace(0.35, 0.95, len(borderlines)))
+
+        for color, borderline in zip(colors, borderlines):
+            if len(borderline) < 2:
+                continue
+            pts = borderline_to_points(borderline)
+            ax.plot(
+                pts[:, 0],
+                pts[:, 1],
+                color=color,
+                linewidth=1.5,
+            )
 
     def _overlay_mask(
         self,

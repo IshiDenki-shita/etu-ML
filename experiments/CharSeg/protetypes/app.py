@@ -11,7 +11,7 @@ import numpy as np
 from experiments.CharSeg.protetypes.context import Context
 from experiments.CharSeg.protetypes.LineNoise import LineNoiseRemover
 from experiments.CharSeg.protetypes.preprocess import Preprocesser
-from experiments.CharSeg.protetypes.GenCandidates.GradNearest import GradNearest
+from experiments.CharSeg.protetypes.GenCandidates.Astar import AstarCandidateGenerator
 from experiments.CharSeg.protetypes.DPselecter import DPselecter
 from experiments.CharSeg.protetypes.visualization import Visualizer
 
@@ -58,7 +58,7 @@ class CharacterSegmenter:
         self.context = Context()
         self.preprocesser = Preprocesser()
         self.line_remover = LineNoiseRemover(debug=True)
-        self.candidate = GradNearest()
+        self.candidate = AstarCandidateGenerator(debug=True)
         self.dpselecter = DPselecter()
         self.visualizer = Visualizer(debug=True)
 

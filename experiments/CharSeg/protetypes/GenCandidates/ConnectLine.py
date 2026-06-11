@@ -1,6 +1,39 @@
-import numpy as np
+# valley pointsなど点群を境界線として捉えるユーティリティ
+
 from typing import List, Tuple
 from collections import deque
+import cv2
+import numpy as np
+
+from experiments.CharSeg.protetypes.context import Borderline
+
+
+def borderline_to_points(borderline: Borderline) -> np.ndarray:
+    return np.asarray(borderline, dtype=np.int32).reshape(-1, 2)
+
+
+def rasterize_borderlines(
+    shape: tuple[int, int],
+    borderlines: list[Borderline],
+    *,
+    thickness: int = 1,
+) -> np.ndarray:
+    """折れ線群を (H, W) のマスク画像にラスタライズする。"""
+    h, w = shape
+    mask = np.zeros((h, w), dtype=np.uint8)
+    for borderline in borderlines:
+        if len(borderline) < 2:
+            continue
+        poly = borderline_to_points(borderline).reshape(-1, 1, 2)
+        cv2.polylines(
+            mask,
+            [poly],
+            isClosed=False,
+            color=255,
+            thickness=thickness,
+            lineType=cv2.LINE_8,
+        )
+    return mask
 
 
 def points_as_line(valley_point_map: np.ndarray) -> List[List]:
@@ -51,5 +84,6 @@ def line_from_points(self, lines: List[List]) -> List[List]:
     verticals = []
 
     for line in lines:
+        ...
 
-    return
+    return verticals
