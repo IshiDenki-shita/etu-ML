@@ -9,8 +9,9 @@ import logging
 import numpy as np
 
 from experiments.CharSeg.protetypes.context import Context
-from experiments.CharSeg.protetypes.LineNoise import LineNoiseRemover
 from experiments.CharSeg.protetypes.preprocess import Preprocesser
+from experiments.CharSeg.protetypes.LineNoise import LineNoiseRemover
+from experiments.CharSeg.protetypes.BlankTrim import BlankTrimmer
 from experiments.CharSeg.protetypes.GenCandidates.Astar import AstarCandidateGenerator
 from experiments.CharSeg.protetypes.DPselecter import DPselecter
 from experiments.CharSeg.protetypes.visualization import Visualizer
@@ -58,6 +59,7 @@ class CharacterSegmenter:
         self.context = Context()
         self.preprocesser = Preprocesser()
         self.line_remover = LineNoiseRemover(debug=True)
+        self.blank_trimmer = BlankTrimmer(debug=True)
         self.candidate = AstarCandidateGenerator(debug=True)
         self.dpselecter = DPselecter()
         self.visualizer = Visualizer(debug=True)
@@ -67,12 +69,13 @@ class CharacterSegmenter:
             log_level=config.log_level,
         )
 
-    def run(self) -> List[np.ndarray]:
+    def run(self):
         print("画像分割開始")
 
         self.context.image_path = self.config.input_image_path
         self.preprocesser.process(self.context)
         self.line_remover.process(self.context)
+        self.blank_trimmer.process(self.context)
         self.candidate.process(self.context)
         self.dpselecter.process(self.context)
         self.visualizer.process(self.context)

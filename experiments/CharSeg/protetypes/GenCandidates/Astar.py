@@ -239,11 +239,12 @@ class AstarCandidateGenerator:
     def process(self, context: Context) -> None:
         logging.info("A*アルゴリズムを用いて文字の分割境界線の候補を列挙します。")
 
-        line_removed = context.line_removed
-        if line_removed is None:
-            raise ValueError("context の line_removed が None です")
+        blank_trimmed = context.blank_trimmed
 
-        _, cost_map = build_cost_maps(line_removed)
+        if blank_trimmed is None:
+            raise ValueError("context の blank_trimmed が None です")
+
+        _, cost_map = build_cost_maps(blank_trimmed)
         borderlines, costs = generate_candidates(
             cost_map,
             num_candidates=self.config.num_candidates,
@@ -257,7 +258,7 @@ class AstarCandidateGenerator:
 
         if self.debug:
             visualize_candidates(
-                line_removed,
+                blank_trimmed,
                 borderlines,
                 costs=costs,
             )

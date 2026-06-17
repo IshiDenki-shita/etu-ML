@@ -23,12 +23,12 @@ class GradSimple:
         self.config = GradSimpleConfig()
 
     def process(self, context: Context):
-        line_removed = context.line_removed
+        blank_trimmed = context.blank_trimmed
 
-        if line_removed is None:
-            raise ValueError("contextのline_removedがNoneです。")
+        if blank_trimmed is None:
+            raise ValueError("contextのblank_trimmedがNoneです。")
 
-        valley_points_map = self.find_valley_line_3x3(line_removed)
+        valley_points_map = self.find_valley_line_3x3(blank_trimmed)
         context.candidates = self.raise_candidates(valley_points_map)
 
     def find_valley_line_3x3(self, binary: np.ndarray) -> np.ndarray:

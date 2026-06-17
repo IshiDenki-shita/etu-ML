@@ -18,10 +18,16 @@ class Context:
     # line removing
     line_suspect: Optional[np.ndarray] = None
     line_removed: Optional[np.ndarray] = None
+
+    # trimming blank space
+    blank_trimmed: Optional[np.ndarray] = None
+
     # raising borderline candidates
     candidates: Optional[List[Borderline]] = None
     candidate_costs: Optional[List[float]] = None
+
     # selecting borderline
     selected: Optional[List[Borderline]] = None
+
     # cropped images
     crops: Optional[List[np.ndarray]] = None

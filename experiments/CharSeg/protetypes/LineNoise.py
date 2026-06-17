@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class LNRConfig:
+
+    #
     binary_threshhold: int = 128
     open_kernel_size: int = 3
     erosion_kernel_size: int = 1
@@ -24,10 +26,11 @@ class LNRConfig:
     max_theta_thresh: np.float16 = np.deg2rad(3, dtype=np.float16)
     # picking vectors
     min_length_thresh: np.float16 = np.float16(20)
-    target_theta: np.float16 = np.deg2rad(0, dtype=np.float16)
+    target_theta_horizontal: np.float16 = np.deg2rad(0, dtype=np.float16)
+    target_theta_vertical: np.float16 = np.deg2rad(90, dtype=np.float16)
     target_theta_tolerance: np.float16 = np.deg2rad(3, dtype=np.float16)
     # line connection
-    connect_dist_thresh: np.uint8 = np.uint8(100)
+    connect_dist_thresh: np.uint8 = np.uint8(50)
 
 
 class LineNoiseRemover:
@@ -43,11 +46,19 @@ class LineNoiseRemover:
         if binary is None:
             raise ValueError("contextのpreorocessedがNoneです。")
 
+        context.line_removed = self.remove_line_angle(
+            binary=binary, target_theta=self.cfg.target_theta_horizontal
+        )
+        context.line_removed = self.remove_line_angle(
+            binary=context.line_removed, target_theta=self.cfg.target_theta_vertical
+        )
+
+    def remove_line_angle(self, binary: np.ndarray, target_theta):
         contours = self.detect_contours(binary=binary)
         cont_vecs, contours = self.arrange_contour_vectors2(contours=contours)
         direct_lines = self.detect_direct_line(cont_vecs=cont_vecs, contours=contours)
         direct_lines = self.pick_needed_line(
-            direct_lines=direct_lines, target_theta=self.cfg.target_theta
+            direct_lines=direct_lines, target_theta=target_theta
         )
         connected_lines = self.connect_splitted_line(
             straight_lines=direct_lines, binary_shape=binary.shape
@@ -56,13 +67,17 @@ class LineNoiseRemover:
             binary=binary, straight_lines=connected_lines
         )
 
-        context.line_removed = self.remove_noise_line(binary=binary, line_map=line_map)
-        self.visualize(
-            binary=binary,
-            contours=contours,
-            cont_vecs=cont_vecs,
-            line_removed=context.line_removed,
-        )
+        line_removed = self.remove_noise_line(binary=binary, line_map=line_map)
+
+        if self.debug:
+            self.visualize(
+                binary=binary,
+                contours=contours,
+                cont_vecs=cont_vecs,
+                line_removed=line_removed,
+            )
+
+        return line_removed
 
     def detect_contours(self, binary):
 
@@ -188,6 +203,7 @@ class LineNoiseRemover:
             direct_line = []
 
             is_closed_contour = self.is_closed_contour(contour=contour)
+
             theta_diffs = self.vector_difference_theta(
                 tan_vecs=tan_vecs, is_closed=is_closed_contour
             )
@@ -240,6 +256,9 @@ class LineNoiseRemover:
         return np.array(theta_diffs)
 
     def pick_needed_line(self, direct_lines, target_theta: np.float16):
+        """
+        pick directline which has target angle
+        """
         needed_lines = []
         for direct_line in direct_lines:
 
@@ -283,13 +302,13 @@ class LineNoiseRemover:
 
                 y1, x1 = line[i]
                 y2, x2 = line[i + 1]
-
+    cv2.line
                 cv2.line(
-                    line_map,
-                    (x1, y1),
-                    (x2, y2),
+                    img=line_map,
+                    pt1=(x1, y1),
+                    pt2=(x2, y2),
                     color=255,
-                    thickness=1,
+                    thickness=thickness=1
                 )
 
         # =========================
@@ -325,14 +344,11 @@ class LineNoiseRemover:
 
             for i, j in tqdm(list(pairs)):
 
-                idxA, pA = endpoints[i]
-                idxB, pB = endpoints[j]
+                idxA, (y1, x1) = endpoints[i]
+                idxB, (y2, x2) = endpoints[j]
 
                 if idxA == idxB:
                     continue
-
-                y1, x1 = pA
-                y2, x2 = pB
 
                 cv2.line(
                     line_map,
@@ -342,9 +358,6 @@ class LineNoiseRemover:
                     thickness=1,
                 )
 
-        # =========================
-        # morphology close
-        # =========================
         kernel = np.ones((3, 3), np.uint8)
 
         line_map = cv2.morphologyEx(
@@ -353,9 +366,6 @@ class LineNoiseRemover:
             kernel,
         )
 
-        # =========================
-        # contourize connected map
-        # =========================
         contours, _ = cv2.findContours(
             line_map,
             cv2.RETR_LIST,

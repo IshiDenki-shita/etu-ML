@@ -28,14 +28,14 @@ class GradNearest:
     def process(self, context: Context):
         logging.info("最近点までの方向ベクトルを用いて分割境界線候補を列挙します。")
 
-        line_removed = context.line_removed
+        blank_trimmed = context.blank_trimmed
 
-        if line_removed is None:
-            raise ValueError("contextのline_removedがNoneです。")
+        if blank_trimmed is None:
+            raise ValueError("contextのblank_trimmedがNoneです。")
 
-        vectors = self.vector_map_nearest(line_removed)
+        vectors = self.vector_map_nearest(blank_trimmed)
         valley_point_map = self.judge_valley_point_nearest(
-            binary=line_removed, vectors=vectors
+            binary=blank_trimmed, vectors=vectors
         )
         candidates_map = self.raise_candidates(valley_point_map)
         context.candidates = candidates_map
