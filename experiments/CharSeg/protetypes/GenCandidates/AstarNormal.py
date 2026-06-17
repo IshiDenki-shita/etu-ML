@@ -1,16 +1,11 @@
 """
 A* による境界線候補列挙。
 
-パイプライン: app.py → AstarCandidateGenerator
-単体検証:
-
-    python -m experiments.CharSeg.protetypes.GenCandidates.Astar
-    python -m experiments.CharSeg.protetypes.GenCandidates.Astar --image path/to/cell.png
+パイプライン: app.py → AstarNormal
 """
 
 from __future__ import annotations
 
-import argparse
 import heapq
 import logging
 from dataclasses import dataclass
@@ -45,28 +40,13 @@ MOVES: tuple[tuple[int, int, float], ...] = (
 )
 
 
-@dataclass
-class AstarContext:
-    original: np.ndarray | None = None
-    binary: np.ndarray | None = None
-    distance_map: np.ndarray | None = None
-    cost_map: np.ndarray | None = None
-    candidates: list[Borderline] | None = None
-    candidate_costs: list[float] | None = None
-
-
 def build_cost_maps(binary: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """binary: 0=background, 255=foreground."""
     binary_bool = binary > 0
     dist = distance_transform_edt(~binary_bool)
-    cost = 1.0 / (dist + 1e-3)
+    cost = 10.0 / (dist + 1e-3)
     cost = cost.astype(np.float64, copy=False)
     cost[binary_bool] = 1e6
     return dist.astype(np.float64), cost
-
-
-def _heuristic(y: int, goal_y: int) -> float:
-    return float(goal_y - y)
 
 
 def astar_best_path(
@@ -91,7 +71,7 @@ def astar_best_path(
     for x in range(w):
         g0 = effective[0, x]
         g_score[0, x] = g0
-        f0 = g0 + _heuristic(0, goal_y)
+        f0 = g0 + float(goal_y - 0)
         heapq.heappush(heap, (f0, g0, x, 0))
 
     best_goal: tuple[int, int] | None = None
@@ -130,7 +110,7 @@ def astar_best_path(
             g_score[ny, nx] = tentative
             parent_x[ny, nx] = x
             parent_y[ny, nx] = y
-            nf = tentative + _heuristic(ny, goal_y)
+            nf = tentative + float(goal_y - ny)
             heapq.heappush(heap, (nf, tentative, nx, ny))
 
     if best_goal is None:
@@ -225,7 +205,7 @@ class AstarConfig:
     suppression_penalty: float = SUPPRESSION_PENALTY
 
 
-class AstarCandidateGenerator:
+class AstarNormal:
     """ステップ3: line_removed から list[Borderline] 候補を列挙する。"""
 
     def __init__(
@@ -300,115 +280,3 @@ def visualize_candidates(
     ax.axis("off")
     plt.tight_layout()
     plt.show()
-
-
-def _load_grayscale(path: Path) -> np.ndarray:
-    img = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
-    if img is None:
-        raise FileNotFoundError(f"画像を読み込めません: {path}")
-    return img
-
-
-def _to_binary(gray: np.ndarray) -> np.ndarray:
-    _, binary = cv2.threshold(
-        gray,
-        0,
-        255,
-        cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU,
-    )
-    return binary
-
-
-def make_synthetic_binary(height: int = 100, width: int = 72) -> np.ndarray:
-    """検証用: 中央に谷がある二筋の文字セル風画像。"""
-    img = np.zeros((height, width), dtype=np.uint8)
-    img[:, 14:20] = 255
-    img[:, 52:58] = 255
-    return img
-
-
-def run_experiment(
-    binary: np.ndarray,
-    *,
-    original: np.ndarray | None = None,
-    num_candidates: int = NUM_CANDIDATES,
-    show_plot: bool = True,
-) -> AstarContext:
-    context = AstarContext()
-    context.original = original
-    context.binary = binary
-
-    dist, cost = build_cost_maps(binary)
-    context.distance_map = dist
-    context.cost_map = cost
-
-    borderlines, costs = generate_candidates(
-        cost,
-        num_candidates=num_candidates,
-    )
-    context.candidates = borderlines
-    context.candidate_costs = costs
-
-    print(len(context.candidates))
-    for i, path_cost in enumerate(costs):
-        print(f"candidate[{i}].cost = {path_cost:.6f}")
-
-    if show_plot:
-        visualize_candidates(
-            binary,
-            context.candidates,
-            costs=costs,
-            original=original,
-        )
-
-    return context
-
-
-def main() -> None:
-    logging.basicConfig(level=logging.INFO)
-    parser = argparse.ArgumentParser(
-        description="A* suppression-based Top-K borderline candidate enumeration",
-    )
-    parser.add_argument(
-        "--image",
-        type=Path,
-        default=None,
-        help="入力グレースケール/カラー画像（未指定時は合成バイナリ）",
-    )
-    parser.add_argument(
-        "--num-candidates",
-        type=int,
-        default=NUM_CANDIDATES,
-        help=f"列挙する候補数（既定: {NUM_CANDIDATES}）",
-    )
-    parser.add_argument(
-        "--no-show",
-        action="store_true",
-        help="matplotlib 表示をスキップ",
-    )
-    args = parser.parse_args()
-
-    if args.image is not None:
-        original = _load_grayscale(args.image)
-        if original.ndim == 2:
-            binary = _to_binary(original)
-        else:
-            raise ValueError("2次元グレースケール画像を想定しています")
-        run_experiment(
-            binary,
-            original=original,
-            num_candidates=args.num_candidates,
-            show_plot=not args.no_show,
-        )
-    else:
-        binary = make_synthetic_binary()
-        run_experiment(
-            binary,
-            original=binary,
-            num_candidates=args.num_candidates,
-            show_plot=not args.no_show,
-        )
-
-
-if __name__ == "__main__":
-    main()

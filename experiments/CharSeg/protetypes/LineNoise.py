@@ -31,6 +31,8 @@ class LNRConfig:
     target_theta_tolerance: np.float16 = np.deg2rad(3, dtype=np.float16)
     # line connection
     connect_dist_thresh: np.uint8 = np.uint8(50)
+    #
+    min_char_domain: int = 100
 
 
 class LineNoiseRemover:

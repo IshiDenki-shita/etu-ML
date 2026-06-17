@@ -12,7 +12,7 @@ from experiments.CharSeg.protetypes.context import Context
 from experiments.CharSeg.protetypes.preprocess import Preprocesser
 from experiments.CharSeg.protetypes.LineNoise import LineNoiseRemover
 from experiments.CharSeg.protetypes.BlankTrim import BlankTrimmer
-from experiments.CharSeg.protetypes.GenCandidates.Astar import AstarCandidateGenerator
+from experiments.CharSeg.protetypes.GenCandidates.AstarHollow import AstarHollow
 from experiments.CharSeg.protetypes.DPselecter import DPselecter
 from experiments.CharSeg.protetypes.visualization import Visualizer
 
@@ -60,7 +60,7 @@ class CharacterSegmenter:
         self.preprocesser = Preprocesser()
         self.line_remover = LineNoiseRemover(debug=True)
         self.blank_trimmer = BlankTrimmer(debug=True)
-        self.candidate = AstarCandidateGenerator(debug=True)
+        self.candidate = AstarHollow(debug=False)
         self.dpselecter = DPselecter()
         self.visualizer = Visualizer(debug=True)
 
