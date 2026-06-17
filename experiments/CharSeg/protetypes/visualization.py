@@ -35,7 +35,7 @@ class Visualizer:
         fig, axes = plt.subplots(
             nrows=4,
             ncols=1,
-            figsize=(8, 7),
+            figsize=(8, 8),
             constrained_layout=False,
         )
 
@@ -49,20 +49,20 @@ class Visualizer:
                 None,
             ),
             (
-                "Line Removed",
-                context.line_removed,
+                "Blank Trimmed",
+                context.blank_trimmed,
                 None,
                 None,
             ),
             (
                 "Candidate Lines",
-                context.line_removed,
+                context.blank_trimmed,
                 context.candidates,
                 "Reds",
             ),
             (
                 "Selected Lines",
-                context.line_removed,
+                context.blank_trimmed,
                 context.selected,
                 "Blues",
             ),

@@ -302,13 +302,13 @@ class LineNoiseRemover:
 
                 y1, x1 = line[i]
                 y2, x2 = line[i + 1]
-    cv2.line
+
                 cv2.line(
                     img=line_map,
                     pt1=(x1, y1),
                     pt2=(x2, y2),
                     color=255,
-                    thickness=thickness=1
+                    thickness=1,
                 )
 
         # =========================
