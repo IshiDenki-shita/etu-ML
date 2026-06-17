@@ -61,10 +61,12 @@ class LineNoiseRemover:
             direct_lines=direct_lines, target_theta=target_theta
         )
         connected_lines = self.connect_splitted_line(
-            straight_lines=direct_lines, binary_shape=binary.shape
+            straight_lines=direct_lines,
+            binary_shape=binary.shape,
         )
         line_map = self.draw_staraight_line(
-            binary=binary, straight_lines=connected_lines
+            binary=binary,
+            straight_lines=connected_lines,
         )
 
         line_removed = self.remove_noise_line(binary=binary, line_map=line_map)
@@ -451,13 +453,37 @@ class LineNoiseRemover:
 
         return ordered_map
 
-    def remove_noise_line(self, binary, line_map):
+    def remove_noise_line(self, binary: np.ndarray, line_map: np.ndarray):
 
-        contours, hierarchy = cv2.findContours(
-            line_map,
-            cv2.RETR_CCOMP,
-            cv2.CHAIN_APPROX_NONE,
+        # remove most part of line noise
+        contours, _ = cv2.findContours(
+            image=line_map, mode=cv2.RETR_CCOMP, method=cv2.CHAIN_APPROX_NONE
         )
+
+        half_way = self.remove_inside_contours(binary=binary, contours=contours)
+
+        # remove remaining part of line noise
+        contours, _ = cv2.findContours(
+            image=half_way, mode=cv2.RETR_CCOMP, method=cv2.CHAIN_APPROX_NONE
+        )
+
+        needless_contours = []
+
+        for contour in contours:
+            area = cv2.contourArea(contour=contour)
+
+            if area < self.cfg.min_char_domain:
+                needless_contours.append(contour)
+
+        removed = self.remove_inside_contours(
+            binary=half_way, contours=needless_contours
+        )
+
+        print(f"remove {len(needless_contours)} needless_contours")
+
+        return removed
+
+    def remove_inside_contours(self, binary, contours):
 
         mask = np.zeros_like(binary, dtype=np.uint8)
 

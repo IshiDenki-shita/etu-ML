@@ -7,7 +7,7 @@ __pycache__
 
 experiments/CharSeg/protetypes/ETLdatasets/*.npy
 
-photos/sample
+photos/sample/
 photos/catched/
 photos/cells/
 photos/chars/
