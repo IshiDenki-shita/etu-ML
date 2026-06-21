@@ -15,6 +15,7 @@ from pathlib import Path
 from tqdm import tqdm
 import cv2
 import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
 import numpy as np
 from scipy.ndimage import distance_transform_edt
 
@@ -83,7 +84,7 @@ class AstarInterval:
         logging.info("%d 本の境界線候補を列挙しました", len(borderlines))
 
         if self.debug:
-            visualize_candidates(
+            self.visualize_candidates(
                 blank_trimmed,
                 borderlines,
                 costs=costs,
@@ -91,7 +92,7 @@ class AstarInterval:
 
     def build_cost_maps(self, binary: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         binary_bool = binary > 0
-        dist = distance_transform_edt(~binary_bool)
+        dist = dist = np.asarray(distance_transform_edt(~binary_bool), dtype=np.float64)
 
         if dist is None:
             raise ValueError("distがNoneです。")  # このraiseがないと下の行で警告
@@ -145,7 +146,7 @@ class AstarInterval:
 
             if visited[y, x]:
                 continue
-            if c >= best_score_map[y, x]:
+            if c > best_score_map[y, x]:
                 continue
 
             visited[y, x] = True
@@ -223,3 +224,56 @@ class AstarInterval:
             costs.append(cost)
 
         return borderlines, costs
+
+    def visualize_candidates(
+        self,
+        image: np.ndarray,
+        borderlines: list[Borderline],
+        costs: list[float] | None = None,
+    ):
+        fig, ax = plt.subplots(figsize=(8, 10))
+
+        ax.imshow(image, cmap="gray")
+
+        if costs is None:
+            costs = [0.0] * len(borderlines)
+
+        norm = Normalize(min(costs), max(costs) + 1e-8)
+        cmap = plt.get_cmap("viridis")
+
+        for path, cost in zip(borderlines, costs):
+            pts = np.asarray(path)
+            if len(pts) == 0:
+                continue
+
+            color = cmap(norm(cost))
+
+            ax.plot(
+                pts[:, 0],
+                pts[:, 1],
+                color=color,
+                linewidth=1.2,
+                alpha=0.8,
+            )
+
+            ax.scatter(
+                pts[0, 0],
+                pts[0, 1],
+                c=[color],
+                s=12,
+                marker="o",
+            )
+
+            ax.scatter(
+                pts[-1, 0],
+                pts[-1, 1],
+                c=[color],
+                s=18,
+                marker="x",
+            )
+
+        ax.set_title("A* candidate paths")
+        ax.set_aspect("equal")
+        ax.invert_yaxis()
+        plt.tight_layout()
+        plt.show()

@@ -60,7 +60,7 @@ class CharacterSegmenter:
         self.preprocesser = Preprocesser()
         self.line_remover = LineNoiseRemover(debug=True)
         self.blank_trimmer = BlankTrimmer(debug=True)
-        self.candidate = AstarHollow(debug=False)
+        self.candidate = AstarInterval(debug=False)
         self.dpselecter = DPselecter()
         self.visualizer = Visualizer(debug=True)
 
