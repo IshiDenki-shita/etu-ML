@@ -12,7 +12,7 @@ from experiments.CharSeg.protetypes.context import Context
 from experiments.CharSeg.protetypes.preprocess import Preprocesser
 from experiments.CharSeg.protetypes.LineNoise import LineNoiseRemover
 from experiments.CharSeg.protetypes.BlankTrim import BlankTrimmer
-from experiments.CharSeg.protetypes.GenCandidates.AstarHollow import AstarHollow
+from experiments.CharSeg.protetypes.GenCandidates.AstarInterval import AstarInterval
 from experiments.CharSeg.protetypes.DPselecter import DPselecter
 from experiments.CharSeg.protetypes.visualization import Visualizer
 

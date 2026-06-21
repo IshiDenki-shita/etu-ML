@@ -47,7 +47,7 @@ MOVES: tuple[tuple[int, int, float], ...] = (
 )
 
 
-class AstarHollow:
+class AstarInterval:
     """ステップ4: blank_trimmed から list[Borderline] 候補を列挙する。"""
 
     def __init__(
@@ -71,7 +71,7 @@ class AstarHollow:
 
         window_width = int(blank_trimmed.shape[0] // self.cfg.search_window_ratio)
 
-        start_points = raise_start_points(blank_trimmed)
+        start_points = self.raise_Astarting_points(blank_trimmed)
 
         _, cost_map = self.build_cost_maps(blank_trimmed)
         borderlines, costs = self.generate_candidates(
