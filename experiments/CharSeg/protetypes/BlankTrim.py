@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BTconfig:
-    noise_size_thresh: int = 100
+    noise_size_thresh: int = 100  # this value will be changed soon
     blank_horizontal_thresh: int = 10
     blank_vertical_thresh: int = 10
 
@@ -33,12 +33,15 @@ class BlankTrimmer:
 
         line_removed = context.line_removed
 
-        h, w = line_removed.shape
+        if line_removed is None:
+            raise ValueError(f"line_removed を読み込めませんでした")
+
+        h, w = line_removed.shape[:2]  # ここでは img は ndarray と確定する
         scale = min(h, w) / 1000.0
 
         self.cfg.blank_horizontal_thresh = max(10, int(10 * scale))
         self.cfg.blank_vertical_thresh = max(10, int(10 * scale))
-        self.cfg.noise_size_thresh = max(500, int(h * w * 1e-4))
+        self.cfg.noise_size_thresh = int(h * w * 1e-4)
 
         if line_removed is None:
             raise ValueError("contextのline_removedがNoneです。")
@@ -53,7 +56,7 @@ class BlankTrimmer:
 
         if self.debug:
             self.visualize_blank_trim(
-                context.line_removed,
+                line_removed,
                 context.blank_trimmed,
                 self.cfg.blank_horizontal_thresh,
                 self.cfg.blank_vertical_thresh,
@@ -79,7 +82,7 @@ class BlankTrimmer:
                     small_fragment_removed,
                     [contour],
                     contourIdx=-1,
-                    color=0,
+                    color=[0],
                     thickness=cv2.FILLED,
                 )
 

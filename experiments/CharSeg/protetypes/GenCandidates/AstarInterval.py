@@ -104,7 +104,6 @@ class AstarInterval:
         start_points = []
         h, w = binary.shape
         Astar_interval = int(w * self.cfg.Astar_start_density)
-        logging.info(f"Astar_interval {Astar_interval, w}")
         for i in range(0, w, Astar_interval):
             sy, sx = 0, i
             start_points.append((sy, sx))
@@ -232,7 +231,7 @@ class AstarInterval:
         borderlines: list[Borderline],
         costs: list[float] | None = None,
     ):
-        fig, ax = plt.subplots(figsize=(8, 4))
+        fig, ax = plt.subplots(figsize=(8, 8))
 
         ax.imshow(image, cmap="gray")
 

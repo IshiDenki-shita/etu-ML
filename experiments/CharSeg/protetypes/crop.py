@@ -6,7 +6,7 @@ from typing import List
 import numpy as np
 from tqdm import tqdm
 
-from experiments.CharSeg.protetypes.context import Context
+from experiments.CharSeg.protetypes.context import Context, Borderline
 
 
 @dataclass
@@ -21,13 +21,13 @@ class Cropper:
 
     def process(self, context: Context):
         logging.info("文字分割境界線に沿って文字を切り出します")
-        borders_map = context.selected
+        borders = context.selected
 
-        if borders_map is None:
+        if borders is None:
             raise ValueError("contextのselectedがNoneです。")
 
-        context.crops = self.harvest(borders_map)
+        context.crops = self.harvest(borders)
 
-    def harvest(self, borders_map: np.ndarray) -> List[np.ndarray]:
+    def harvest(self, borders: List[Borderline]) -> List[np.ndarray]:
         char_images = []
         return char_images

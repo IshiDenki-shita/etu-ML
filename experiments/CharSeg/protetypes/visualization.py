@@ -90,6 +90,7 @@ class Visualizer:
             bottom=0.02,
             hspace=0.03,
         )
+        assert fig.canvas.manager is not None
         fig.canvas.manager.set_window_title("Character Segmentation Visualization")
         plt.show()
 

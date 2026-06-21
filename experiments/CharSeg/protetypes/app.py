@@ -3,10 +3,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
 import logging
-
-import numpy as np
 
 from experiments.CharSeg.protetypes.context import Context
 from experiments.CharSeg.protetypes.preprocess import Preprocesser
@@ -38,7 +35,7 @@ def setup_logging(enable_logging: bool, log_level: int) -> None:
 @dataclass(frozen=True)
 class CharacterSegmentationConfig:
     # input / output
-    input_image_path: Path = Path("photos/sample/cells/ebiten.jpeg")
+    input_image_path: Path = Path("photos/sample/cells/karaage.jpeg")
     output_dir: Path = Path("experiments/CharSeg/outputs")
 
     # debug
@@ -58,8 +55,8 @@ class CharacterSegmenter:
 
         self.context = Context()
         self.preprocesser = Preprocesser()
-        self.line_remover = LineNoiseRemover(debug=False)
-        self.blank_trimmer = BlankTrimmer(debug=False)
+        self.line_remover = LineNoiseRemover(debug=True)
+        self.blank_trimmer = BlankTrimmer(debug=True)
         self.candidate = AstarInterval(debug=True)
         self.dpselecter = DPselecter()
         self.visualizer = Visualizer(debug=True)
