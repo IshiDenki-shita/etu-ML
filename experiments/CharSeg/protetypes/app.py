@@ -67,7 +67,7 @@ class CharacterSegmenter:
         )
 
     def run(self):
-        print("画像分割開始")
+        logging.info("画像分割開始")
 
         self.context.image_path = self.config.input_image_path
         self.preprocesser.process(self.context)

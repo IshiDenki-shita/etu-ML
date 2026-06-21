@@ -194,7 +194,9 @@ class LineNoiseRemover:
             contour_vectors.append(tangent_vectors)
             valid_contours.append(contour)
 
-        print(f"arranged tangent vectors about {len(valid_contours)} valid_contours")
+        logging.info(
+            f"arranged tangent vectors about {len(valid_contours)} valid_contours"
+        )
         # the idx of contour corresponed to tangent_vector's
         return contour_vectors, valid_contours
 
@@ -229,7 +231,7 @@ class LineNoiseRemover:
                 if len(direct_line) > 2:
                     direct_lines.append(direct_line)
 
-        print(f"detcted {len(direct_lines)} direct_lines")
+        logging.info(f"detcted {len(direct_lines)} direct_lines")
         return direct_lines
 
     def vector_difference_theta(self, tan_vecs: np.ndarray, is_closed: bool = False):
@@ -394,7 +396,9 @@ class LineNoiseRemover:
 
             connected_lines.append(line)
 
-        print(f"connected lines : {len(straight_lines)} -> {len(connected_lines)}")
+        logging.info(
+            f"connected lines : {len(straight_lines)} -> {len(connected_lines)}"
+        )
 
         return connected_lines
 
@@ -454,7 +458,7 @@ class LineNoiseRemover:
                     thickness=1,
                 )
 
-        print("completed making map with straight lines")
+        logging.info("completed making map with straight lines")
 
         return ordered_map
 
@@ -484,7 +488,7 @@ class LineNoiseRemover:
             binary=half_way, contours=needless_contours
         )
 
-        print(f"remove {len(needless_contours)} needless_contours")
+        logging.info(f"remove {len(needless_contours)} needless_contours")
 
         return removed
 

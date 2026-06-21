@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import heapq
 import logging
+from typing import cast
 from dataclasses import dataclass
-from pathlib import Path
 
 from tqdm import tqdm
 import cv2
@@ -43,6 +43,7 @@ MOVES: tuple[tuple[int, int, float], ...] = (
 def build_cost_maps(binary: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     binary_bool = binary > 0
     dist = distance_transform_edt(~binary_bool)
+    dist = cast(np.ndarray, distance_transform_edt(~binary_bool))
     cost = 10.0 / (dist + 1e-3)
     cost = cost.astype(np.float64, copy=False)
     cost[binary_bool] = 1e6
@@ -259,7 +260,7 @@ def visualize_candidates(
 
     fig, ax = plt.subplots(figsize=(8, 10))
     ax.imshow(display)
-    cmap = plt.cm.tab10
+    cmap = plt.get_cmap("tab10")
 
     for i, cand in enumerate(candidates):
         color = cmap(i % 10)
