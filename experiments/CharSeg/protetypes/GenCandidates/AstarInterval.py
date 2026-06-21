@@ -10,10 +10,8 @@ from __future__ import annotations
 import heapq
 import logging
 from dataclasses import dataclass
-from pathlib import Path
 
 from tqdm import tqdm
-import cv2
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 import numpy as np
@@ -73,8 +71,8 @@ class AstarInterval:
         window_width = int(blank_trimmed.shape[0] // self.cfg.search_window_ratio)
 
         start_points = self.raise_Astarting_points(blank_trimmed)
-
         _, cost_map = self.build_cost_maps(blank_trimmed)
+
         borderlines, costs = self.generate_candidates(
             cost_map, start_points, window_width
         )
@@ -104,10 +102,12 @@ class AstarInterval:
 
     def raise_Astarting_points(self, binary: np.ndarray):
         start_points = []
-        w, h = binary.shape
+        h, w = binary.shape
         Astar_interval = int(w * self.cfg.Astar_start_density)
+        logging.info(f"Astar_interval {Astar_interval, w}")
         for i in range(0, w, Astar_interval):
-            start_points.append((0, i))
+            sy, sx = 0, i
+            start_points.append((sy, sx))
         return start_points
 
     def astar_best_path(
@@ -129,7 +129,7 @@ class AstarInterval:
         parent_y = np.full((h, w), -1, dtype=np.int32)
 
         # starting point
-        sx, sy = start_point
+        sy, sx = start_point
         c0 = cost_map[sy, sx]  # cost of starting point
         f0 = c0 + float(h - 1 - 0)  # huristic value (ゴールまでの距離の目安・概算)
         heap = [(f0, c0, sx, sy)]  # heap[i] = (huristic_val, whole_cost, x, y)
@@ -213,10 +213,11 @@ class AstarInterval:
         costs: list[float] = []
 
         for start_point in tqdm(start_points, disable=not self.debug):
+            sy, sx = start_point
 
             points, cost = self.astar_best_path(
                 cost_map,
-                start_point,
+                (sy, sx),
                 window_width,
             )
 
@@ -231,7 +232,7 @@ class AstarInterval:
         borderlines: list[Borderline],
         costs: list[float] | None = None,
     ):
-        fig, ax = plt.subplots(figsize=(8, 10))
+        fig, ax = plt.subplots(figsize=(8, 4))
 
         ax.imshow(image, cmap="gray")
 
@@ -274,6 +275,5 @@ class AstarInterval:
 
         ax.set_title("A* candidate paths")
         ax.set_aspect("equal")
-        ax.invert_yaxis()
         plt.tight_layout()
         plt.show()

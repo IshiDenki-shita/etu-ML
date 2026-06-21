@@ -58,9 +58,9 @@ class CharacterSegmenter:
 
         self.context = Context()
         self.preprocesser = Preprocesser()
-        self.line_remover = LineNoiseRemover(debug=True)
-        self.blank_trimmer = BlankTrimmer(debug=True)
-        self.candidate = AstarInterval(debug=False)
+        self.line_remover = LineNoiseRemover(debug=False)
+        self.blank_trimmer = BlankTrimmer(debug=False)
+        self.candidate = AstarInterval(debug=True)
         self.dpselecter = DPselecter()
         self.visualizer = Visualizer(debug=True)
 
