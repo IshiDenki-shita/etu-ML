@@ -29,7 +29,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AstarConfig:
-    char_pixel_cost: float = 1e4
+    # cost-map making
+    char_pixel_cost: float = 50
+    # Astar stating point
+    Astar_start_density: float = 1 / 30
+    # Astar running
     search_window_ratio: float = 1 / 8
 
 
@@ -92,10 +96,18 @@ class AstarHollow:
         if dist is None:
             raise ValueError("distがNoneです。")  # このraiseがないと下の行で警告
 
-        cost = 10.0 / (dist[0] + 1e-3)
+        cost = 10.0 / (dist + 1e-3)
         cost = cost.astype(np.float64, copy=False)
         cost[binary_bool] = self.cfg.char_pixel_cost
         return dist.astype(np.float64), cost
+
+    def raise_Astarting_points(self, binary: np.ndarray):
+        start_points = []
+        w, h = binary.shape
+        Astar_interval = int(w * self.cfg.Astar_start_density)
+        for i in range(0, w, Astar_interval):
+            start_points.append((0, i))
+        return start_points
 
     def astar_best_path(
         self, cost_map: np.ndarray, start_point: tuple[int, int], window_width: int
@@ -117,8 +129,10 @@ class AstarHollow:
 
         # starting point
         sx, sy = start_point
-        heap = [(sx, sy, 0)]  # heap[0] = (x, y, whole_cost)
-        best_score_map[sy, sx] = 0
+        c0 = cost_map[sy, sx]  # cost of starting point
+        f0 = c0 + float(h - 1 - 0)  # huristic value (ゴールまでの距離の目安・概算)
+        heap = [(f0, c0, sx, sy)]  # heap[i] = (huristic_val, whole_cost, x, y)
+        best_score_map[sy, sx] = c0
 
         # limit searching width
         right_wall = sx + window_width // 2
@@ -127,11 +141,11 @@ class AstarHollow:
         left_wall = left_wall if left_wall >= 0 else 0
 
         while heap:
-            x, y, c = heap.pop()
+            f, c, x, y = heapq.heappop(heap)
 
             if visited[y, x]:
                 continue
-            if c > best_score_map[y, x]:
+            if c >= best_score_map[y, x]:
                 continue
 
             visited[y, x] = True
@@ -140,6 +154,9 @@ class AstarHollow:
                 if c < best_goal_cost:
                     best_goal_cost = c
                     best_goal_point = (x, y)
+                if best_goal_point is not None and f >= best_goal_cost:
+                    # there is no better path than this
+                    break
                 continue
 
             for stepx, stepy, step_cost in MOVES:
@@ -152,14 +169,14 @@ class AstarHollow:
                     continue
 
                 nc = c + step_cost + cost_map[ny, nx]
-
                 if nc >= best_score_map[ny, nx]:
                     continue
 
+                best_score_map[ny, nx] = nc
+                nf = nc + float(h - 1 - ny)
                 parent_x[ny, nx] = x
                 parent_y[ny, nx] = y
-                best_score_map[ny, nx] = nc
-                heap.append((nx, ny, nc))
+                heapq.heappush(heap, (nf, nc, nx, ny))
 
         gx, gy = best_goal_point
         best_path = self._reconstruct_path(parent_x, parent_y, gx, gy)
