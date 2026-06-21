@@ -5,8 +5,7 @@ select suitable border line from candidates
 import logging
 from dataclasses import dataclass
 
-from experiments.CharSeg.protetypes.GenCandidates.ConnectLine import Borderline
-from experiments.CharSeg.protetypes.context import Context
+from experiments.CharSeg.protetypes.context import Context, Borderline
 
 
 @dataclass

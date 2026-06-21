@@ -29,7 +29,7 @@ def rasterize_borderlines(
             mask,
             [poly],
             isClosed=False,
-            color=255,
+            color=[255],
             thickness=thickness,
             lineType=cv2.LINE_8,
         )

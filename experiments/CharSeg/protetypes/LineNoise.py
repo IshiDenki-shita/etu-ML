@@ -29,7 +29,7 @@ class LNRConfig:
     min_length_thresh: np.float16 = np.float16(20)
     target_theta_horizontal: np.float16 = np.deg2rad(0, dtype=np.float16)
     target_theta_vertical: np.float16 = np.deg2rad(90, dtype=np.float16)
-    target_theta_tolerance: np.float16 = np.deg2rad(2, dtype=np.float16)
+    target_theta_tolerance: np.float16 = np.deg2rad(3, dtype=np.float16)
     # line connection
     connect_dist_thresh: float = 50
     #
@@ -297,26 +297,26 @@ class LineNoiseRemover:
 
         line_map = np.zeros(binary_shape, dtype=np.uint8)
 
-        # =========================
-        # draw original line segments
-        # =========================
-        for line in straight_lines:
+        # # =========================
+        # # draw original line segments
+        # # =========================
+        # for line in straight_lines:
 
-            if len(line) < 2:
-                continue
+        #     if len(line) < 2:
+        #         continue
 
-            for i in range(len(line) - 1):
+        #     for i in range(len(line) - 1):
 
-                y1, x1 = line[i]
-                y2, x2 = line[i + 1]
+        #         y1, x1 = line[i]
+        #         y2, x2 = line[i + 1]
 
-                cv2.line(
-                    img=line_map,
-                    pt1=(x1, y1),
-                    pt2=(x2, y2),
-                    color=[255],
-                    thickness=1,
-                )
+        #         cv2.line(
+        #             img=line_map,
+        #             pt1=(x1, y1),
+        #             pt2=(x2, y2),
+        #             color=[255],
+        #             thickness=1,
+        #         )
 
         # =========================
         # collect endpoints
@@ -554,7 +554,7 @@ class LineNoiseRemover:
                     (x, y),
                     (ex, ey),
                     (255, 0, 255),  # マゼンタ・太め
-                    2,
+                    1,
                     tipLength=0.3,
                 )
 
@@ -572,7 +572,7 @@ class LineNoiseRemover:
                     (x1, y1),
                     (x2, y2),
                     (0, 0, 255),  # 赤・太め
-                    3,
+                    2,
                 )
 
         # ③ Detected Line Map を Binary に重ねる

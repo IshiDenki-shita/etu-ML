@@ -33,7 +33,7 @@ class AstarConfig:
     # Astar stating point
     Astar_start_density: float = 1 / 30
     # Astar running
-    search_window_ratio: float = 1 / 8
+    search_window_ratio: float = 1 / 10
 
 
 MOVES: tuple[tuple[int, int, float], ...] = (
@@ -41,8 +41,8 @@ MOVES: tuple[tuple[int, int, float], ...] = (
     (-1, 1, 1.414),
     (0, 1, 1.0),
     (1, 1, 1.414),
-    (-1, 0, 5.0),
-    (1, 0, 5.0),
+    (-1, 0, 10.0),
+    (1, 0, 10.0),
 )
 
 
@@ -68,10 +68,11 @@ class AstarInterval:
         if blank_trimmed is None:
             raise ValueError("context の blank_trimmed が None です")
 
-        window_width = int(blank_trimmed.shape[0] // self.cfg.search_window_ratio)
-
-        start_points = self.raise_Astarting_points(blank_trimmed)
         _, cost_map = self.build_cost_maps(blank_trimmed)
+
+        window_width = int(blank_trimmed.shape[1] * self.cfg.search_window_ratio)
+        logging.info(f"window_width: {window_width}")
+        start_points = self.raise_Astarting_points(blank_trimmed)
 
         borderlines, costs = self.generate_candidates(
             cost_map, start_points, window_width
