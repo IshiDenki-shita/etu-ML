@@ -200,7 +200,7 @@ def generate_candidates(
 
 
 @dataclass
-class AstarConfig:
+class AstarNormalConfig:
     num_candidates: int = NUM_CANDIDATES
     suppression_radius: int = SUPPRESSION_RADIUS
     suppression_penalty: float = SUPPRESSION_PENALTY
@@ -211,10 +211,10 @@ class AstarNormal:
 
     def __init__(
         self,
-        config: AstarConfig | None = None,
+        config: AstarNormalConfig | None = None,
         debug: bool = False,
     ) -> None:
-        self.config = config or AstarConfig()
+        self.config = config or AstarNormalConfig()
         self.debug = debug
 
     def process(self, context: Context) -> None:

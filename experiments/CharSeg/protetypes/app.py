@@ -1,4 +1,3 @@
-# cd /Users/matsukou/Desktop/projects/ETU/etu-ML
 # python -m experiments.CharSeg.protetypes.app
 
 from dataclasses import dataclass
@@ -32,50 +31,95 @@ def setup_logging(enable_logging: bool, log_level: int) -> None:
     )
 
 
+# 画像として扱う拡張子
+IMAGE_EXTENSIONS = {".jpeg", ".jpg", ".png", ".bmp", ".tiff"}
+
+
 @dataclass(frozen=True)
 class CharacterSegmentationConfig:
     # input / output
-    input_image_path: Path = Path("photos/sample/cells/karaage.jpeg")
+    input_dir: Path = Path("photos/sample/cells")
+    input_one_path = Path("photos/sample/cells/butakarubi.jpeg")
+    go_all_sample: bool = False
     output_dir: Path = Path("experiments/CharSeg/outputs")
 
     # debug
     save_debug_image: bool = True
     enable_logging: bool = True
-    log_level: int = logging.INFO
+    log_level: int = logging.WARNING
+
+    # show debug or not
+    show_line_remover: bool = False
+    show_blank_trimmer: bool = False
+    show_candidate_generater: bool = False
+    show_visualizer: bool = True
 
 
 class CharacterSegmenter:
     def __init__(self, config: CharacterSegmentationConfig) -> None:
-        self.config = config
+        self.cfg = config
 
-        self.config.output_dir.mkdir(
+        self.cfg.output_dir.mkdir(
             parents=True,
             exist_ok=True,
         )
 
-        self.context = Context()
         self.preprocesser = Preprocesser()
-        self.line_remover = LineNoiseRemover(debug=False)
-        self.blank_trimmer = BlankTrimmer(debug=False)
-        self.candidate = AstarInterval(debug=False)
+        self.line_remover = LineNoiseRemover(debug=self.cfg.show_line_remover)
+        self.blank_trimmer = BlankTrimmer(debug=self.cfg.show_blank_trimmer)
+        self.candidate = AstarInterval(debug=self.cfg.show_candidate_generater)
         self.dpselecter = DPselecter()
-        self.visualizer = Visualizer(debug=True)
+        self.visualizer = Visualizer(debug=self.cfg.show_visualizer)
 
         setup_logging(
             enable_logging=config.enable_logging,
             log_level=config.log_level,
         )
 
-    def run(self):
-        logging.info("画像分割開始")
+    def _iter_image_paths(self):
+        """input_dir 内の画像ファイルをソート済みで列挙する"""
+        return sorted(
+            p
+            for p in self.cfg.input_dir.iterdir()
+            if p.suffix.lower() in IMAGE_EXTENSIONS
+        )
 
-        self.context.image_path = self.config.input_image_path
-        self.preprocesser.process(self.context)
-        self.line_remover.process(self.context)
-        self.blank_trimmer.process(self.context)
-        self.candidate.process(self.context)
-        self.dpselecter.process(self.context)
-        self.visualizer.process(self.context)
+    def run_one(self, image_path: Path) -> None:
+        """1枚の画像に対してパイプラインを実行する"""
+        logging.info(f"画像分割開始: {image_path.name}")
+
+        context = Context()
+        context.image_path = image_path
+
+        self.preprocesser.process(context)
+        self.line_remover.process(context)
+        self.blank_trimmer.process(context)
+        self.candidate.process(context)
+        self.dpselecter.process(context)
+        self.visualizer.process(context)
+
+        logging.info(f"画像分割完了: {image_path.name}")
+
+    def run(self) -> None:
+        image_paths = self._iter_image_paths()
+
+        if not image_paths:
+            logging.warning(f"画像が見つかりません: {self.cfg.input_dir}")
+            return
+
+        logging.info(f"{len(image_paths)} 件の画像を処理します")
+
+        if self.cfg.go_all_sample:
+            """input_dir 内のサンプル画像全てに対して順番に実行する"""
+            for image_path in image_paths:
+                try:
+                    self.run_one(image_path)
+                except Exception:
+                    logging.exception(
+                        f"処理中にエラーが発生しました: {image_path.name}"
+                    )
+        else:
+            self.run_one(self.cfg.input_one_path)
 
 
 def main() -> None:
