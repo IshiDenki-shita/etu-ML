@@ -15,13 +15,17 @@ from experiments.CharSeg.protetypes.context import Context, Borderline
 @dataclass
 class DPselecterConfig:
     # 期待する文字幅の区間 [min_width, max_width]（px単位）。
-    # 区間内であればペナルティ0、外れるとその逸脱量に応じてペナルティが増える。
-    min_char_width: int = 40
-    max_char_width: int = 80
+    # 区間内であれば「繋ぐボーナス」が満額、外れるとその逸脱量に応じて減衰する。
+    min_char_width: int = 80
+    max_char_width: int = 150
 
-    # 区間外に出たときのペナルティの重み。
-    # penalty = width_penalty_weight * (区間外への逸脱量)
-    width_penalty_weight: float = 1.0
+    # 隣接ペアの幅が期待区間に収まっているときに与えるボーナス（スコアに加算）。
+    # このボーナスが単体コストより大きいほど、「繋いだ方が得」になりやすい。
+    width_bonus: float = 400.0
+
+    # 区間外に出たときの減衰の重み。
+    # ボーナス = max(0, width_bonus - width_penalty_weight * 逸脱量)
+    width_penalty_weight: float = 5.0
 
     allow_empty_selection: bool = False
 
@@ -44,7 +48,10 @@ class DPselecter:
         )
 
     def select_borderline(
-        self, candidates: list[Borderline], *, costs: list[float] | None = None
+        self,
+        candidates: list[Borderline],
+        *,
+        costs: list[float] | None = None,
     ) -> list[Borderline]:
 
         if not candidates:
@@ -66,38 +73,40 @@ class DPselecter:
         n = len(order)
 
         # 3. DP本体。
-        #    dp[i]      : 候補iを「最後に採用した」と仮定した場合の最小累積コスト
-        #    parent[i]  : dp[i]を実現する直前に採用した候補のインデックス（無ければNone）
-        NEG_INF = float("inf")
-        dp = [NEG_INF] * n
+        #    score[i]   : 候補iを「最後に採用した」と仮定した場合の最良スコア（大きいほど良い）
+        #                 = -(単体コストの合計) + (隣接ペアの繋ぐボーナスの合計)
+        #    parent[i]  : score[i]を実現する直前に採用した候補のインデックス（無ければNone）
+        NEG_INF = float("-inf")
+        score = [NEG_INF] * n
         parent: list[int | None] = [None] * n
 
         for i in range(n):
             # 「iより前に何も採用していない」場合（iが最初の採用候補）
-            best = sorted_costs[i]
+            # スコアは単体コストのみが差し引かれる（繋ぐボーナスはまだ無い）。
+            best = -sorted_costs[i]
             best_parent = None
 
             # 「jを直前に採用していた」場合（jはiより前の任意の候補）
             for j in range(i):
-                if dp[j] == NEG_INF:
+                if score[j] == NEG_INF:
                     continue
-                penalty = self._width_penalty(sorted_xs[j], sorted_xs[i])
-                cand_cost = dp[j] + penalty + sorted_costs[i]
-                if cand_cost < best:
-                    best = cand_cost
+                bonus = self._width_bonus(sorted_xs[j], sorted_xs[i])
+                cand_score = score[j] + bonus - sorted_costs[i]
+                if cand_score > best:
+                    best = cand_score
                     best_parent = j
 
-            dp[i] = best
+            score[i] = best
             parent[i] = best_parent
 
         # 4. 終端（最後に採用する候補）を決める。
-        #    「何も採用しない」を許容する場合は、その選択肢（コスト0）も比較対象に入れる。
+        #    「何も採用しない」を許容する場合は、その選択肢（スコア0）も比較対象に入れる。
         end_idx: int | None = None
-        end_cost = 0.0 if self.cfg.allow_empty_selection else NEG_INF
+        end_score = 0.0 if self.cfg.allow_empty_selection else NEG_INF
 
         for i in range(n):
-            if dp[i] < end_cost:
-                end_cost = dp[i]
+            if score[i] > end_score:
+                end_score = score[i]
                 end_idx = i
 
         if end_idx is None:
@@ -107,17 +116,13 @@ class DPselecter:
         # 5. バックトラックして採用インデックス列（昇順）を復元する。
         selected_sorted_indices: list[int] = []
         cur: int | None = end_idx
-
         while cur is not None:
             selected_sorted_indices.append(cur)
             cur = parent[cur]
         selected_sorted_indices.reverse()
 
         logging.info(
-            "DP選択結果: %d候補中 %d本を採用 (総コスト=%.3f)",
-            n,
-            len(selected_sorted_indices),
-            dp[end_idx],
+            f"{parent}\nDP選択結果: {n}候補中 {len(selected_sorted_indices)}本を採用 (総スコア={score[end_idx]})",
         )
 
         # ソート後インデックス -> 元のcandidatesのインデックスへ変換して返す
@@ -136,11 +141,14 @@ class DPselecter:
         closest_point = min(borderline, key=lambda p: abs(p[1] - y_center))
         return float(closest_point[0])
 
-    def _width_penalty(self, x_prev: float, x_curr: float) -> float:
+    def _width_bonus(self, x_prev: float, x_curr: float) -> float:
         """
         隣接する2本の境界線間の文字幅が、期待区間
-        [min_char_width, max_char_width] からどれだけ逸脱しているかに
-        応じたペナルティを返す。区間内なら0。
+        [min_char_width, max_char_width] にどれだけ合致しているかに
+        応じたボーナス（スコアへの加点）を返す。
+
+        区間内なら満額(width_bonus)、外れるほど線形に減衰し、
+        0未満には下がらない(繋ぐことが「損」にしかならない事態を避けるため)。
         """
         width = x_curr - x_prev
 
@@ -149,6 +157,7 @@ class DPselecter:
         elif width > self.cfg.max_char_width:
             deviation = width - self.cfg.max_char_width
         else:
-            return 0.0
+            return self.cfg.width_bonus
 
-        return self.cfg.width_penalty_weight * deviation
+        bonus = self.cfg.width_bonus - self.cfg.width_penalty_weight * deviation
+        return max(0.0, bonus)
