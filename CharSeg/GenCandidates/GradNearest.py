@@ -26,7 +26,7 @@ class GradNearest:
         self.debug = debug
 
     def process(self, context: Context):
-        logging.debug("最近点までの方向ベクトルを用いて分割境界線候補を列挙します。")
+        logger.debug("最近点までの方向ベクトルを用いて分割境界線候補を列挙します。")
 
         blank_trimmed = context.blank_trimmed
 

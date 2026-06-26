@@ -13,7 +13,7 @@ from CharSeg.DPselecter import DPselecter
 from CharSeg.visualization import Visualizer
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
 )
 
@@ -24,6 +24,10 @@ def setup_logging(enable_logging: bool, log_level: int) -> None:
     if not enable_logging:
         logging.disable(logging.CRITICAL)
         return
+
+    logging.getLogger("matplotlib").setLevel(
+        logging.WARNING
+    )  # matplotlibのログを WARNING 以上に制限する
 
     logging.basicConfig(
         level=log_level,
@@ -46,7 +50,7 @@ class CharacterSegmentationConfig:
     # debug
     save_debug_image: bool = True
     enable_logging: bool = True
-    log_level: int = logging.WARNING
+    log_level: int = logging.DEBUG
 
     # show debug or not
     show_line_remover: bool = False
@@ -86,7 +90,7 @@ class CharacterSegmenter:
 
     def run_one(self, image_path: Path) -> None:
         """1枚の画像に対してパイプラインを実行する"""
-        logging.info(f"文字分割開始: {image_path.name}")
+        logger.debug(f"文字分割開始: {image_path.name}")
 
         context = Context()
         context.image_path = image_path
@@ -98,7 +102,7 @@ class CharacterSegmenter:
         self.dpselecter.process(context)
         self.visualizer.process(context)
 
-        logging.debug(f"画像分割完了: {image_path.name}")
+        logger.debug(f"画像分割完了: {image_path.name}")
 
     def run(self) -> None:
         image_paths = self._iter_image_paths()
@@ -107,7 +111,7 @@ class CharacterSegmenter:
             logging.warning(f"画像が見つかりません: {self.cfg.input_dir}")
             return
 
-        logging.debug(f"{len(image_paths)} 件の画像を処理します")
+        logger.debug(f"{len(image_paths)} 件の画像を処理します")
 
         if self.cfg.go_all_sample:
             """input_dir 内のサンプル画像全てに対して順番に実行する"""

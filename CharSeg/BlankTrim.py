@@ -28,7 +28,7 @@ class BlankTrimmer:
         self.debug = debug
 
     def process(self, context: Context):
-        logging.debug("小さい破片ノイズを取り除いて、空白部分を切り取ります。")
+        logger.debug("小さい破片ノイズを取り除いて、空白部分を切り取ります。")
 
         line_removed = context.line_removed
 

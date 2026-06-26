@@ -15,6 +15,8 @@ from CharSeg.GenCandidates.ConnectLine import (
 )
 from CharSeg.context import Context
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class visualizationConfig:
@@ -27,7 +29,7 @@ class Visualizer:
         self.config = visualizationConfig(enabled=debug)
 
     def process(self, context: Context):
-        logging.debug("結果を表示します。（共通項目）")
+        logger.debug("結果を表示します。（共通項目）")
 
         if not self.config.enabled:
             return

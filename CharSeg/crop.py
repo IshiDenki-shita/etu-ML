@@ -7,6 +7,8 @@ import numpy as np
 
 from CharSeg.context import Context, Borderline
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class CropperConfig:
@@ -19,7 +21,7 @@ class Cropper:
         self.debug = debug
 
     def process(self, context: Context):
-        logging.debug("文字分割境界線に沿って文字を切り出します")
+        logger.debug("文字分割境界線に沿って文字を切り出します")
         borders = context.selected
 
         if borders is None:

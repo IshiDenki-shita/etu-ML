@@ -10,6 +10,8 @@ import cv2
 
 from CharSeg.context import Context
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class PreprocesserConfig:
@@ -23,7 +25,7 @@ class Preprocesser:
         self.config = PreprocesserConfig()
 
     def process(self, context: Context):
-        logging.debug("画像の取得、リサイズ、2値化、ノイズ除去を行います。")
+        logger.debug("画像の取得、リサイズ、2値化、ノイズ除去を行います。")
         self.image_path = context.image_path
         buf = self.load_image()
         buf = self.resize_image(image=buf)

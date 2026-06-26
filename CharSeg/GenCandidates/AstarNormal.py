@@ -220,7 +220,7 @@ class AstarNormal:
         self.debug = debug
 
     def process(self, context: Context) -> None:
-        logging.debug("A*アルゴリズムを用いて文字の分割境界線の候補を列挙します。")
+        logger.debug("A*アルゴリズムを用いて文字の分割境界線の候補を列挙します。")
 
         blank_trimmed = context.blank_trimmed
 
@@ -238,7 +238,7 @@ class AstarNormal:
 
         context.candidates = borderlines
         context.candidate_costs = costs
-        logging.debug("%d 本の境界線候補を列挙しました", len(borderlines))
+        logger.debug("%d 本の境界線候補を列挙しました", len(borderlines))
 
         if self.debug:
             visualize_candidates(

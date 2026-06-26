@@ -13,6 +13,8 @@ import numpy as np
 
 from CharSeg.context import Context, Borderline
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class DPselecterConfig:
@@ -39,7 +41,7 @@ class DPselecter:
         self.cfg = config or DPselecterConfig()
 
     def process(self, context: Context) -> None:
-        logging.debug("分割境界線の候補から、採用する境界線をDPで選択します。")
+        logger.debug("分割境界線の候補から、採用する境界線をDPで選択します。")
 
         candidates = context.candidates
         blank_trimmed = context.blank_trimmed
@@ -59,7 +61,7 @@ class DPselecter:
 
         self.min_char_width = int(h * 1.2)
         self.max_char_width = int(h * 0.8)
-        logging.debug(
+        logger.debug(
             f"DPselecter: char width {self.min_char_width} ~ {self.max_char_width}"
         )
 
@@ -137,7 +139,7 @@ class DPselecter:
             cur = parent[cur]
         selected_sorted_indices.reverse()
 
-        logging.debug(
+        logger.debug(
             f"{parent}\nDP選択結果: {n}候補中 {len(selected_sorted_indices)}本を採用 (総スコア={score[end_idx]})",
         )
 
