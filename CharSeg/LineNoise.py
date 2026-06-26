@@ -8,7 +8,7 @@ from scipy.spatial import cKDTree
 import cv2
 import numpy as np
 
-from experiments.CharSeg.protetypes.context import Context
+from CharSeg.protetypes.context import Context
 
 logger = logging.getLogger(__name__)
 

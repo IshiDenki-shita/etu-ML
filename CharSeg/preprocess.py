@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import cv2
 
-from experiments.CharSeg.protetypes.context import Context
+from CharSeg.protetypes.context import Context
 
 
 @dataclass

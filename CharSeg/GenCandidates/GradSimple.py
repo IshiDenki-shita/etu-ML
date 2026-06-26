@@ -5,8 +5,8 @@ from tqdm import tqdm
 import scipy
 from typing import Tuple
 
-from experiments.CharSeg.protetypes.context import Context
-from experiments.CharSeg.protetypes.GenCandidates.ConnectLine import 
+from CharSeg.protetypes.context import Context
+from CharSeg.protetypes.GenCandidates.ConnectLine import 
 
 """
 simple grad and 3x3 window

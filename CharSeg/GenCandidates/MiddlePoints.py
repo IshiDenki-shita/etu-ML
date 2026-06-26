@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import numpy as np
 
-from experiments.CharSeg.protetypes.context import Context
+from CharSeg.protetypes.context import Context
 
 
 @dataclass
@@ -14,7 +14,7 @@ class MiddlePointer:
         self.config = MiddlePointerConfig()
 
     def process(self, context: Context):
-        middles_map = self.horizontal_middle_points(context.resized)
+        middles_map = self.horizontal_middle_points(context.blank_trimmed)
         context.candidates = self.raise_candidates(middles_map)
 
     def horizontal_middle_points(self, binary) -> np.ndarray:

@@ -8,7 +8,7 @@ import scipy
 from typing import Tuple
 import matplotlib.pyplot as plt
 
-from experiments.CharSeg.protetypes.context import Context
+from CharSeg.protetypes.context import Context
 
 """
 nearest true pixel vector

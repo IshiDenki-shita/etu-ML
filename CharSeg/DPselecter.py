@@ -11,7 +11,7 @@ from typing import Optional
 from dataclasses import dataclass
 import numpy as np
 
-from experiments.CharSeg.protetypes.context import Context, Borderline
+from CharSeg.protetypes.context import Context, Borderline
 
 
 @dataclass

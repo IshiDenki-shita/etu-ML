@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 import cv2
 
-from experiments.CharSeg.protetypes.context import Context
+from CharSeg.protetypes.context import Context
 
 logger = logging.getLogger(__name__)
 
