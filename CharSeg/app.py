@@ -1,4 +1,4 @@
-# python -m experiments.CharSeg.protetypes.app
+# python -m CharSeg.app
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -51,7 +51,7 @@ class CharacterSegmentationConfig:
     # show debug or not
     show_line_remover: bool = False
     show_blank_trimmer: bool = False
-    show_GenCandidate: bool = False
+    show_GenCandidate: bool = True
     show_visualizer: bool = False
 
 
