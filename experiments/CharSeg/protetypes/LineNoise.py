@@ -43,7 +43,7 @@ class LineNoiseRemover:
         self.debug = debug
 
     def process(self, context: Context):
-        logging.info("ホワイトボードのマス目の線を取り除きます。")
+        logging.debug("ホワイトボードのマス目の線を取り除きます。")
         binary = context.preprocessed
 
         if binary is None:
@@ -194,7 +194,7 @@ class LineNoiseRemover:
             contour_vectors.append(tangent_vectors)
             valid_contours.append(contour)
 
-        logging.info(
+        logging.debug(
             f"arranged tangent vectors about {len(valid_contours)} valid_contours"
         )
         # the idx of contour corresponed to tangent_vector's
@@ -231,7 +231,7 @@ class LineNoiseRemover:
                 if len(direct_line) > 2:
                     direct_lines.append(direct_line)
 
-        logging.info(f"detcted {len(direct_lines)} direct_lines")
+        logging.debug(f"detcted {len(direct_lines)} direct_lines")
         return direct_lines
 
     def vector_difference_theta(self, tan_vecs: np.ndarray, is_closed: bool = False):
@@ -290,7 +290,7 @@ class LineNoiseRemover:
             if abs(cos) >= np.cos(self.cfg.target_theta_tolerance):
                 needed_lines.append(direct_line)
 
-        logging.info(
+        logging.debug(
             f"return {len(needed_lines)} needed linnes and removed {len(direct_lines) - len(needed_lines)}"
         )
         return needed_lines
@@ -351,7 +351,7 @@ class LineNoiseRemover:
 
             pairs = tree.query_pairs(r=self.cfg.connect_dist_thresh)
 
-            for i, j in tqdm(list(pairs)):
+            for i, j in tqdm(list(pairs), disable=not self.debug):
 
                 idxA, (y1, x1) = endpoints[i]
                 idxB, (y2, x2) = endpoints[j]
@@ -396,7 +396,7 @@ class LineNoiseRemover:
 
             connected_lines.append(line)
 
-        logging.info(
+        logging.debug(
             f"connected lines : {len(straight_lines)} -> {len(connected_lines)}"
         )
 
@@ -458,7 +458,7 @@ class LineNoiseRemover:
                     thickness=1,
                 )
 
-        logging.info("completed making map with straight lines")
+        logging.debug("completed making map with straight lines")
 
         return ordered_map
 
@@ -488,7 +488,7 @@ class LineNoiseRemover:
             binary=half_way, contours=needless_contours
         )
 
-        logging.info(f"remove {len(needless_contours)} needless_contours")
+        logging.debug(f"remove {len(needless_contours)} needless_contours")
 
         return removed
 

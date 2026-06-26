@@ -5,7 +5,6 @@ from typing import List, Tuple
 import cv2
 import numpy as np
 import scipy
-from tqdm import tqdm
 
 from experiments.segmentation.context.segmentation_context import SegmentationContext
 from experiments.segmentation.pipeline.character_segmentation_pipeline import (

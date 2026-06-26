@@ -4,7 +4,6 @@ import logging
 from dataclasses import dataclass
 from typing import List
 import numpy as np
-from tqdm import tqdm
 
 from experiments.CharSeg.protetypes.context import Context, Borderline
 
@@ -20,7 +19,7 @@ class Cropper:
         self.debug = debug
 
     def process(self, context: Context):
-        logging.info("文字分割境界線に沿って文字を切り出します")
+        logging.debug("文字分割境界線に沿って文字を切り出します")
         borders = context.selected
 
         if borders is None:

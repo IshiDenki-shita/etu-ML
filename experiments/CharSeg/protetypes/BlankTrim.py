@@ -2,7 +2,6 @@ import logging
 from typing import List, Tuple
 from dataclasses import dataclass
 
-from tqdm import tqdm
 import numpy as np
 import cv2
 
@@ -29,7 +28,7 @@ class BlankTrimmer:
         self.debug = debug
 
     def process(self, context: Context):
-        logging.info("小さい破片ノイズを取り除いて、空白部分を切り取ります。")
+        logging.debug("小さい破片ノイズを取り除いて、空白部分を切り取ります。")
 
         line_removed = context.line_removed
 

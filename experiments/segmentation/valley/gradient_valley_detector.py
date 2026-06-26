@@ -9,8 +9,9 @@ from experiments.segmentation.valley.valley_detector_base import ValleyDetectorB
 
 
 class GradientValleyDetector(ValleyDetectorBase):
-    def __init__(self, min_theta: float) -> None:
+    def __init__(self, min_theta: float, debug: bool = False) -> None:
         self._min_theta = min_theta
+        self.debug = debug
 
     def process(self, context: SegmentationContext) -> SegmentationContext:
         if context.removed_binary is None:
@@ -68,7 +69,7 @@ class GradientValleyDetector(ValleyDetectorBase):
         valley_point_map = np.zeros((height, width), dtype=np.uint8)
         count = 0
 
-        for y in tqdm(range(height)):
+        for y in tqdm(range(height), disable=self.debug):
             for x in range(width - 1):
                 if binary[y, x] > 0:
                     continue

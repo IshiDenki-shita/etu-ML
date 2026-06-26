@@ -23,10 +23,10 @@ class GradNearestConfig:
 class GradNearest:
     def __init__(self, debug: bool = True):
         self.config = GradNearestConfig()
-        self.show_debug = debug
+        self.debug = debug
 
     def process(self, context: Context):
-        logging.info("最近点までの方向ベクトルを用いて分割境界線候補を列挙します。")
+        ("最近点までの方向ベクトルを用いて分割境界線候補を列挙します。")
 
         blank_trimmed = context.blank_trimmed
 
@@ -52,7 +52,7 @@ class GradNearest:
         valley_point_map: np.ndarray,
         candidates_map: np.ndarray,
     ) -> None:
-        if not self.show_debug:
+        if not self.debug:
             return
 
         fig, axes = plt.subplots(
@@ -146,7 +146,7 @@ class GradNearest:
 
         count = 0
 
-        for y in tqdm(range(height)):
+        for y in tqdm(range(height), disable=self.debug):
             for x in range(width - 1):
 
                 if binary[y, x] > 0:

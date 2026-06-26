@@ -19,8 +19,9 @@ class GradSimpleConfig:
 
 
 class GradSimple:
-    def __init__(self):
+    def __init__(self, debug: bool = False):
         self.config = GradSimpleConfig()
+        self.debug = debug
 
     def process(self, context: Context):
         blank_trimmed = context.blank_trimmed
@@ -53,7 +54,7 @@ class GradSimple:
         w, h = buf_map.shape
         valley_points_map = np.zeros_like(heat_map)
 
-        for i in tqdm(range(ksize, w - ksize, 1)):
+        for i in tqdm(range(ksize, w - ksize, 1), disable=self.debug):
             for j in range(ksize, h - ksize, 1):
                 neighor = buf_map[
                     i - ksize : i + ksize + 1,

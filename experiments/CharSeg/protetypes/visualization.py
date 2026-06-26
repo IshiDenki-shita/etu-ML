@@ -27,7 +27,7 @@ class Visualizer:
         self.config = visualizationConfig(enabled=debug)
 
     def process(self, context: Context):
-        logging.info("結果を表示します。（共通項目）")
+        logging.debug("結果を表示します。（共通項目）")
 
         if not self.config.enabled:
             return

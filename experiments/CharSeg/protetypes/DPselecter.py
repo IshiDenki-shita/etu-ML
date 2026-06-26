@@ -7,21 +7,20 @@ select suitable border line from candidates
 """
 
 import logging
+from typing import Optional
 from dataclasses import dataclass
+import numpy as np
 
 from experiments.CharSeg.protetypes.context import Context, Borderline
 
 
 @dataclass
 class DPselecterConfig:
-    # 期待する文字幅の区間 [min_width, max_width]（px単位）。
-    # 区間内であれば「繋ぐボーナス」が満額、外れるとその逸脱量に応じて減衰する。
-    min_char_width: int = 80
-    max_char_width: int = 150
-
     # 隣接ペアの幅が期待区間に収まっているときに与えるボーナス（スコアに加算）。
     # このボーナスが単体コストより大きいほど、「繋いだ方が得」になりやすい。
     width_bonus: float = 400.0
+
+    expected_width_ratio = 1
 
     # 区間外に出たときの減衰の重み。
     # ボーナス = max(0, width_bonus - width_penalty_weight * 逸脱量)
@@ -31,20 +30,37 @@ class DPselecterConfig:
 
 
 class DPselecter:
+    # 期待する文字幅の区間 [min_width, max_width]（px単位）。
+    # 区間内であれば「繋ぐボーナス」が満額、外れるとその逸脱量に応じて減衰する。
+    min_char_width: int
+    max_char_width: int
+
     def __init__(self, config: DPselecterConfig | None = None) -> None:
         self.cfg = config or DPselecterConfig()
 
     def process(self, context: Context) -> None:
-        logging.info("分割境界線の候補から、採用する境界線をDPで選択します。")
+        logging.debug("分割境界線の候補から、採用する境界線をDPで選択します。")
 
         candidates = context.candidates
+        blank_trimmed = context.blank_trimmed
 
-        if candidates is None:
+        if candidates is None or blank_trimmed is None:
             raise ValueError("contextのcandidatesがNoneです。")
+
+        self.adopt_char_width(blank_trimmed)
 
         context.selected = self.select_borderline(
             candidates,
             costs=context.candidate_costs,
+        )
+
+    def adopt_char_width(self, blank_trimmed: np.ndarray):
+        h, w = blank_trimmed.shape
+
+        self.min_char_width = int(h * 1.2)
+        self.max_char_width = int(h * 0.8)
+        logging.debug(
+            f"DPselecter: char width {self.min_char_width} ~ {self.max_char_width}"
         )
 
     def select_borderline(
@@ -121,7 +137,7 @@ class DPselecter:
             cur = parent[cur]
         selected_sorted_indices.reverse()
 
-        logging.info(
+        logging.debug(
             f"{parent}\nDP選択結果: {n}候補中 {len(selected_sorted_indices)}本を採用 (総スコア={score[end_idx]})",
         )
 
@@ -152,10 +168,10 @@ class DPselecter:
         """
         width = x_curr - x_prev
 
-        if width < self.cfg.min_char_width:
-            deviation = self.cfg.min_char_width - width
-        elif width > self.cfg.max_char_width:
-            deviation = width - self.cfg.max_char_width
+        if width < self.min_char_width:
+            deviation = self.min_char_width - width
+        elif width > self.max_char_width:
+            deviation = width - self.max_char_width
         else:
             return self.cfg.width_bonus
 

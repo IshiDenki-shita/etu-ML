@@ -59,7 +59,7 @@ class AstarInterval:
         self.debug = debug
 
     def process(self, context: Context) -> None:
-        logging.info(
+        logging.debug(
             "A*アルゴリズムを用いて文字の分割境界線の候補を列挙します。(谷点から開始)"
         )
 
@@ -71,7 +71,7 @@ class AstarInterval:
         _, cost_map = self.build_cost_maps(blank_trimmed)
 
         window_width = int(blank_trimmed.shape[1] * self.cfg.search_window_ratio)
-        logging.info(f"window_width: {window_width}")
+        logging.debug(f"window_width: {window_width}")
         start_points = self.raise_Astarting_points(blank_trimmed)
 
         borderlines, costs = self.generate_candidates(
@@ -80,7 +80,7 @@ class AstarInterval:
 
         context.candidates = borderlines
         context.candidate_costs = costs
-        logging.info("%d 本の境界線候補を列挙しました", len(borderlines))
+        logging.debug("%d 本の境界線候補を列挙しました", len(borderlines))
 
         if self.debug:
             self.visualize_candidates(

@@ -39,8 +39,8 @@ IMAGE_EXTENSIONS = {".jpeg", ".jpg", ".png", ".bmp", ".tiff"}
 class CharacterSegmentationConfig:
     # input / output
     input_dir: Path = Path("photos/sample/cells")
-    input_one_path = Path("photos/sample/cells/butakarubi.jpeg")
-    go_all_sample: bool = False
+    input_one_path = Path("photos/sample/cells/gyoza4.jpeg")
+    go_all_sample: bool = True
     output_dir: Path = Path("experiments/CharSeg/outputs")
 
     # debug
@@ -51,8 +51,8 @@ class CharacterSegmentationConfig:
     # show debug or not
     show_line_remover: bool = False
     show_blank_trimmer: bool = False
-    show_candidate_generater: bool = False
-    show_visualizer: bool = True
+    show_GenCandidate: bool = False
+    show_visualizer: bool = False
 
 
 class CharacterSegmenter:
@@ -67,7 +67,7 @@ class CharacterSegmenter:
         self.preprocesser = Preprocesser()
         self.line_remover = LineNoiseRemover(debug=self.cfg.show_line_remover)
         self.blank_trimmer = BlankTrimmer(debug=self.cfg.show_blank_trimmer)
-        self.candidate = AstarInterval(debug=self.cfg.show_candidate_generater)
+        self.candidate = AstarInterval(debug=self.cfg.show_GenCandidate)
         self.dpselecter = DPselecter()
         self.visualizer = Visualizer(debug=self.cfg.show_visualizer)
 
@@ -86,7 +86,7 @@ class CharacterSegmenter:
 
     def run_one(self, image_path: Path) -> None:
         """1枚の画像に対してパイプラインを実行する"""
-        logging.info(f"画像分割開始: {image_path.name}")
+        logging.info(f"文字分割開始: {image_path.name}")
 
         context = Context()
         context.image_path = image_path
@@ -98,7 +98,7 @@ class CharacterSegmenter:
         self.dpselecter.process(context)
         self.visualizer.process(context)
 
-        logging.info(f"画像分割完了: {image_path.name}")
+        logging.debug(f"画像分割完了: {image_path.name}")
 
     def run(self) -> None:
         image_paths = self._iter_image_paths()
@@ -107,7 +107,7 @@ class CharacterSegmenter:
             logging.warning(f"画像が見つかりません: {self.cfg.input_dir}")
             return
 
-        logging.info(f"{len(image_paths)} 件の画像を処理します")
+        logging.debug(f"{len(image_paths)} 件の画像を処理します")
 
         if self.cfg.go_all_sample:
             """input_dir 内のサンプル画像全てに対して順番に実行する"""

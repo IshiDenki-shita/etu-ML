@@ -176,12 +176,14 @@ def generate_candidates(
     num_candidates: int = NUM_CANDIDATES,
     suppression_radius: int = SUPPRESSION_RADIUS,
     suppression_penalty: float = SUPPRESSION_PENALTY,
+    debug: bool,
 ) -> tuple[list[Borderline], list[float]]:
+
     penalty_map = np.zeros_like(cost_map, dtype=np.float64)
     candidates: list[Borderline] = []
     costs: list[float] = []
 
-    for _ in tqdm(range(num_candidates)):
+    for _ in tqdm(range(num_candidates), disable=not debug):
         points, cost = astar_best_path(cost_map, penalty_map)
         if points is None or cost is None:
             logger.warning("これ以上経路が見つかりません（%d 本）", len(candidates))
@@ -218,7 +220,7 @@ class AstarNormal:
         self.debug = debug
 
     def process(self, context: Context) -> None:
-        logging.info("A*アルゴリズムを用いて文字の分割境界線の候補を列挙します。")
+        logging.debug("A*アルゴリズムを用いて文字の分割境界線の候補を列挙します。")
 
         blank_trimmed = context.blank_trimmed
 
@@ -231,11 +233,12 @@ class AstarNormal:
             num_candidates=self.config.num_candidates,
             suppression_radius=self.config.suppression_radius,
             suppression_penalty=self.config.suppression_penalty,
+            debug=self.debug,
         )
 
         context.candidates = borderlines
         context.candidate_costs = costs
-        logging.info("%d 本の境界線候補を列挙しました", len(borderlines))
+        logging.debug("%d 本の境界線候補を列挙しました", len(borderlines))
 
         if self.debug:
             visualize_candidates(
