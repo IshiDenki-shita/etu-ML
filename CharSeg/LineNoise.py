@@ -96,20 +96,6 @@ class LineNoiseRemover:
 
         return contours
 
-    def is_closed_contour(self, contour: np.ndarray, dist_thresh: float = 1.5) -> bool:
-        """
-        I didn't notice cv2.findContour returns only closed contour
-        """
-        if len(contour) < 2:
-            return False
-
-        sx, sy = contour[0][0]
-        fx, fy = contour[-1][0]
-
-        dist = np.hypot(fx - sx, fy - sy)
-
-        return dist <= dist_thresh
-
     def arrange_contour_vectors2(self, contours: np.ndarray):
         """
         calculate tangent vector on contour more simply
@@ -124,14 +110,9 @@ class LineNoiseRemover:
                 continue
 
             tangent_vectors = []
-            is_closed = self.is_closed_contour(contour=contour)
 
-            if is_closed:
-                start = 0
-                fin = length
-            else:
-                start = cont_neighr_len
-                fin = length - cont_neighr_len
+            start = 0
+            fin = length
 
             for i in range(start, fin):
                 idx1 = (i - cont_neighr_len) % length
@@ -139,23 +120,6 @@ class LineNoiseRemover:
                 x1, y1 = contour[idx1][0]
                 x2, y2 = contour[idx2][0]
                 tangent_vectors.append((x2 - x1, y2 - y1))
-
-            if not is_closed:
-                start_vecs = []
-                for i in range(cont_neighr_len):
-                    x1, y1 = contour[i][0]
-                    x2, y2 = contour[i + cont_neighr_len][0]
-                    start_vecs.append((x2 - x1, y2 - y1))
-
-                tangent_vectors = start_vecs + tangent_vectors
-
-                fin_vecs = []
-                for i in range(1, cont_neighr_len + 1):
-                    x1, y1 = contour[-i][0]
-                    x2, y2 = contour[-i - cont_neighr_len][0]
-                    fin_vecs.append((x2 - x1, y2 - y1))
-
-                tangent_vectors = tangent_vectors + fin_vecs
 
             contour_vectors.append(tangent_vectors)
             valid_contours.append(contour)
@@ -177,11 +141,7 @@ class LineNoiseRemover:
         for i, (tan_vecs, contour) in enumerate(zip(cont_vecs, contours)):
             direct_line = []
 
-            is_closed_contour = self.is_closed_contour(contour=contour)
-
-            theta_diffs = self.vector_difference_theta(
-                tan_vecs=tan_vecs, is_closed=is_closed_contour
-            )
+            theta_diffs = self.vector_difference_theta(tan_vecs=tan_vecs)
             length = len(theta_diffs)
 
             for i in range(length):
@@ -200,16 +160,13 @@ class LineNoiseRemover:
         logging.debug(f"detcted {len(direct_lines)} direct_lines")
         return direct_lines
 
-    def vector_difference_theta(self, tan_vecs: np.ndarray, is_closed: bool = False):
+    def vector_difference_theta(self, tan_vecs: np.ndarray):
         """
         the difference theta1 and theta2 as a vector difference
         """
         theta_diffs = []
         length = len(tan_vecs)
         for i in range(length):
-
-            if not is_closed and i == length - 1:
-                continue
 
             vx1, vy1 = tan_vecs[i]
             vx2, vy2 = tan_vecs[(i + 1) % length]

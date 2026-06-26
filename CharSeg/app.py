@@ -40,7 +40,7 @@ class CharacterSegmentationConfig:
     # input / output
     input_dir: Path = Path("photos/sample/cells")
     input_one_path = Path("photos/sample/cells/gyoza4.jpeg")
-    go_all_sample: bool = True
+    go_all_sample: bool = False
     output_dir: Path = Path("experiments/CharSeg/outputs")
 
     # debug
