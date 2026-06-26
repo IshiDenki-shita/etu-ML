@@ -4,7 +4,3 @@ matplotlib
 scipy
 torch
 tqdm
-maxflow
-scikit-learn
-ultralytics
-scikit-image

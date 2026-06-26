@@ -110,40 +110,6 @@ class LineNoiseRemover:
 
         return dist <= dist_thresh
 
-    def arrange_contour_vectors(self, contours: np.ndarray):
-        """
-        calculate tangent vector on contour
-        """
-        contour_vectors = []
-        for contour in contours:
-
-            small_vectors = []
-            px, py = contour[0][0]
-
-            for i in range(1, len(contour), 1):
-                cx, cy = contour[i][0]
-                small_vectors.append((cx - px, cy - py))
-                px, py = cx, cy
-            fx, fy = contour[0][0]
-            small_vectors.append((fx - px, fy - py))
-
-            length = len(small_vectors)
-            tangent_vectors = []
-
-            for i in range(length):
-                sum_x, sum_y = 0, 0
-
-                for j in range(self.cfg.cont_nighr_len * 2 + 1):
-                    half = self.cfg.cont_nighr_len
-                    idx = (i + j - half) % length
-                    sum_x += small_vectors[idx][0]
-                    sum_y += small_vectors[idx][1]
-                tangent_vectors.append((sum_x, sum_y))
-
-            contour_vectors.append(tangent_vectors)
-
-        return contour_vectors
-
     def arrange_contour_vectors2(self, contours: np.ndarray):
         """
         calculate tangent vector on contour more simply
