@@ -17,11 +17,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import distance_transform_edt
 
-from CharSeg.protetypes.GenCandidates.ConnectLine import (
+from CharSeg.GenCandidates.ConnectLine import (
     Borderline,
     borderline_to_points,
 )
-from CharSeg.protetypes.context import Context
+from CharSeg.context import Context
 
 logger = logging.getLogger(__name__)
 

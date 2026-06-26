@@ -4,13 +4,13 @@ from dataclasses import dataclass
 from pathlib import Path
 import logging
 
-from CharSeg.protetypes.context import Context
-from CharSeg.protetypes.preprocess import Preprocesser
-from CharSeg.protetypes.LineNoise import LineNoiseRemover
-from CharSeg.protetypes.BlankTrim import BlankTrimmer
-from CharSeg.protetypes.GenCandidates.AstarInterval import AstarInterval
-from CharSeg.protetypes.DPselecter import DPselecter
-from CharSeg.protetypes.visualization import Visualizer
+from CharSeg.context import Context
+from CharSeg.preprocess import Preprocesser
+from CharSeg.LineNoise import LineNoiseRemover
+from CharSeg.BlankTrim import BlankTrimmer
+from CharSeg.GenCandidates.AstarInterval import AstarInterval
+from CharSeg.DPselecter import DPselecter
+from CharSeg.visualization import Visualizer
 
 logging.basicConfig(
     level=logging.INFO,

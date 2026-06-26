@@ -5,7 +5,7 @@ from collections import deque
 import cv2
 import numpy as np
 
-from CharSeg.protetypes.context import Borderline
+from CharSeg.context import Borderline
 
 
 def borderline_to_points(borderline: Borderline) -> np.ndarray:

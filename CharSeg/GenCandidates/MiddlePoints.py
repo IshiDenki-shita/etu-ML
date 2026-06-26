@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import numpy as np
 
-from CharSeg.protetypes.context import Context
+from CharSeg.context import Context
 
 
 @dataclass

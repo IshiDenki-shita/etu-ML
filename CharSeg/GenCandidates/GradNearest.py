@@ -5,10 +5,10 @@ from dataclasses import dataclass
 from tqdm import tqdm
 import numpy as np
 import scipy
-from typing import Tuple
+from typing import Tuple, List
 import matplotlib.pyplot as plt
 
-from CharSeg.protetypes.context import Context
+from CharSeg.context import Context, Borderline
 
 """
 nearest true pixel vector
@@ -26,7 +26,7 @@ class GradNearest:
         self.debug = debug
 
     def process(self, context: Context):
-        ("最近点までの方向ベクトルを用いて分割境界線候補を列挙します。")
+        logging.debug("最近点までの方向ベクトルを用いて分割境界線候補を列挙します。")
 
         blank_trimmed = context.blank_trimmed
 
@@ -41,7 +41,7 @@ class GradNearest:
         context.candidates = candidates_map
 
         self.visualize(
-            line_removed=line_removed,
+            line_removed=context.blank_trimmed,
             valley_point_map=valley_point_map,
             candidates_map=candidates_map,
         )
@@ -52,8 +52,12 @@ class GradNearest:
         valley_point_map: np.ndarray,
         candidates_map: np.ndarray,
     ) -> None:
+
         if not self.debug:
             return
+
+        if line_removed is None or valley_point_map is None:
+            raise ValueError("GradNearestのvisualize()の中にNoneが入った。")
 
         fig, axes = plt.subplots(
             nrows=3,
@@ -162,10 +166,10 @@ class GradNearest:
 
         return valley_point_map
 
-    def raise_candidates(self, valley_points_map: np.ndarray):
-        candidates_map = np.zeros_like(valley_points_map)
+    def raise_candidates(self, valley_points_map: np.ndarray) -> List[Borderline]:
+        candidates = []
 
         # raising borderline candidates is here
         # note: the candidates_map has to be made as the mask image of border lines
         ...
-        return candidates_map
+        return candidates
