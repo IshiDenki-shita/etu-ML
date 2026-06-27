@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class LNRConfig:
+    # debug
+    show_detection_part: bool = True
+    show_merging_part: bool = True
+    show_eracing_part: bool = False
+
     # contour vector
     cont_nighr_len: int = 10
     max_theta_thresh: np.float16 = np.deg2rad(2, dtype=np.float16)
@@ -27,12 +32,12 @@ class LNRConfig:
     target_theta_tolerance: np.float16 = np.deg2rad(3, dtype=np.float16)
 
     # line connection
-    connect_dist_thresh: float = 50
+    connect_dist_thresh: float = 300
     min_segment_length_ratio: float = 0.3
     direction_estimation_window: int = 5
     direction_alignment_cos_thresh: float = 0.7
 
-    #
+    # 線を除去した後の破片の大きさ
     min_char_domain: int = 100
 
 
@@ -82,6 +87,8 @@ class LineNoiseRemover:
         lines = self.detect_lines(binary, target_theta)
         merged_lines = self.merge_lines(lines)
         result = self.erase_lines(binary, merged_lines)
+
+        plt.show(block=True)
         return result
 
     def detect_lines(
@@ -92,7 +99,7 @@ class LineNoiseRemover:
         direct_lines = self.detect_direct_line(contour_vectors)
         needed_lines = self.pick_needed_line(direct_lines, target_theta)
 
-        if self.debug:
+        if self.debug and self.cfg.show_detection_part:
             self._visualize_detection(
                 binary,
                 contours,
@@ -113,10 +120,9 @@ class LineNoiseRemover:
         raw_pairs = self._search_close_pairs(endpoints)
         pairs = self._filter_pairs(endpoints, raw_pairs)
         adjacency = self._build_adjacency(len(endpoints), pairs)
-
         connected_lines = self._trace_chain(connectable, endpoints, adjacency)
 
-        if self.debug:
+        if self.debug and self.cfg.show_merging_part:
             self._visualize_merge(lines, endpoints, pairs, connected_lines)
 
         return connected_lines + standalone
@@ -699,7 +705,7 @@ class LineNoiseRemover:
 
         logger.debug(f"remove {len(needless_contours)} needless_contours")
 
-        if self.debug:
+        if self.debug and self.cfg.show_eracing_part:
             self._visualize_erase(
                 binary, line_image, half_way, needless_contours, removed
             )
@@ -754,7 +760,7 @@ class LineNoiseRemover:
         img_vectors = base_bgr.copy()
         for cv_data in contour_vectors:
             # 視認性のため適度に間引いてベクトル（接線）を描画
-            step = max(1, len(cv_data.points) // 10)
+            step = max(1, len(cv_data.points) // 20)
             for i in range(0, len(cv_data.points), step):
                 y, x = cv_data.points[i]
                 vx, vy = cv_data.tangents[i]
@@ -766,8 +772,8 @@ class LineNoiseRemover:
                         img_vectors,
                         (int(x), int(y)),
                         (int(x + vx), int(y + vy)),
-                        (255, 0, 0),
-                        1,
+                        (0, 0, 255),
+                        thickness=2,
                     )
         axes[1].imshow(cv2.cvtColor(img_vectors, cv2.COLOR_BGR2RGB))
         axes[1].set_title("2. Contour Vectors")
@@ -778,7 +784,7 @@ class LineNoiseRemover:
             for i in range(len(line) - 1):
                 y1, x1 = line[i]
                 y2, x2 = line[i + 1]
-                cv2.line(img_direct, (x1, y1), (x2, y2), (0, 255, 255), 1)
+                cv2.line(img_direct, (x1, y1), (x2, y2), (0, 0, 255), 2)
         axes[2].imshow(cv2.cvtColor(img_direct, cv2.COLOR_BGR2RGB))
         axes[2].set_title("3. Direct Lines (Before Angle Filter)")
 
@@ -913,6 +919,3 @@ class LineNoiseRemover:
         for ax in axes.flatten():
             ax.axis("off")
         plt.tight_layout()
-
-        # 最後のプロットなのでブロッキングしてユーザーに見せる
-        plt.show(block=True)

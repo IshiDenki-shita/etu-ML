@@ -1,5 +1,6 @@
 # python -m CharSeg.app
 
+import random
 from dataclasses import dataclass
 from pathlib import Path
 import logging
@@ -46,9 +47,10 @@ class CharacterSegmentationConfig:
     input_one_path = Path("photos/sample/cells/gyoza4.jpeg")
 
     # debug
+    go_all_sample: bool = True
+    go_ramdomly: bool = True
     enable_logging: bool = True
     log_level: int = logging.DEBUG
-    go_all_sample: bool = False
 
     # show debug image or not
     show_line_remover: bool = True
@@ -76,9 +78,12 @@ class CharacterSegmenter:
     def _iter_image_paths(self):
         """input_dir 内の画像ファイルをソート済みで列挙する"""
         return sorted(
-            p
-            for p in self.cfg.input_dir.iterdir()
-            if p.suffix.lower() in IMAGE_EXTENSIONS
+            [
+                p
+                for p in self.cfg.input_dir.iterdir()
+                if p.suffix.lower() in IMAGE_EXTENSIONS
+            ],
+            key=lambda x: random.random(),
         )
 
     def run_one(self, image_path: Path) -> None:
