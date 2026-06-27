@@ -71,7 +71,6 @@ class AstarInterval:
         _, cost_map = self.build_cost_maps(blank_trimmed)
 
         window_width = int(blank_trimmed.shape[1] * self.cfg.search_window_ratio)
-        logger.debug(f"window_width: {window_width}")
         start_points = self.raise_Astarting_points(blank_trimmed)
 
         borderlines, costs = self.generate_candidates(

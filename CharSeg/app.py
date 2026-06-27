@@ -47,7 +47,7 @@ class CharacterSegmentationConfig:
     input_one_path = Path("photos/sample/cells/gyoza4.jpeg")
 
     # debug
-    go_all_sample: bool = True
+    go_all_sample: bool = False
     go_ramdomly: bool = True
     enable_logging: bool = True
     log_level: int = logging.DEBUG
@@ -77,14 +77,17 @@ class CharacterSegmenter:
 
     def _iter_image_paths(self):
         """input_dir 内の画像ファイルをソート済みで列挙する"""
-        return sorted(
-            [
-                p
-                for p in self.cfg.input_dir.iterdir()
-                if p.suffix.lower() in IMAGE_EXTENSIONS
-            ],
-            key=lambda x: random.random(),
-        )
+
+        paths = [
+            p
+            for p in self.cfg.input_dir.iterdir()
+            if p.suffix.lower() in IMAGE_EXTENSIONS
+        ]
+
+        if self.cfg.go_ramdomly:
+            paths.sort(key=lambda x: random.random())
+
+        return paths
 
     def run_one(self, image_path: Path) -> None:
         """1枚の画像に対してパイプラインを実行する"""

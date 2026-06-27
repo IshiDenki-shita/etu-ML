@@ -175,9 +175,6 @@ class LineNoiseRemover:
 
             contour_vectors.append(ContourVectors(points=points, tangents=tangents))
 
-        logger.debug(
-            f"arranged tangent vectors about {len(contour_vectors)} valid_contours"
-        )
         return contour_vectors
 
     def detect_direct_line(self, contour_vectors: List[ContourVectors]):
@@ -202,7 +199,6 @@ class LineNoiseRemover:
             if len(direct_line) > 2:
                 direct_lines.append(direct_line)
 
-        logger.debug(f"detcted {len(direct_lines)} direct_lines")
         return direct_lines
 
     def vector_difference_theta(self, tan_vecs: List[Tuple[float, float]]):
@@ -255,9 +251,6 @@ class LineNoiseRemover:
             if abs(cos) >= np.cos(self.cfg.target_theta_tolerance):
                 needed_lines.append(direct_line)
 
-        logger.debug(
-            f"return {len(needed_lines)} needed linnes and removed {len(direct_lines) - len(needed_lines)}"
-        )
         return needed_lines
 
     # -------------------------
@@ -675,7 +668,6 @@ class LineNoiseRemover:
                     thickness=1,
                 )
 
-        logger.debug("completed making map with straight lines")
         return ordered_map
 
     def remove_noise_line(
@@ -702,8 +694,6 @@ class LineNoiseRemover:
         removed = self.remove_inside_contours(
             binary=half_way, contours=needless_contours
         )
-
-        logger.debug(f"remove {len(needless_contours)} needless_contours")
 
         if self.debug and self.cfg.show_eracing_part:
             self._visualize_erase(

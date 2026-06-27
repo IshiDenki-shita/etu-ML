@@ -139,10 +139,6 @@ class DPselecter:
             cur = parent[cur]
         selected_sorted_indices.reverse()
 
-        logger.debug(
-            f"{parent}\nDP選択結果: {n}候補中 {len(selected_sorted_indices)}本を採用 (総スコア={score[end_idx]})",
-        )
-
         # ソート後インデックス -> 元のcandidatesのインデックスへ変換して返す
         return [candidates[order[i]] for i in selected_sorted_indices]
 
