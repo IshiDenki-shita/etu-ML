@@ -53,9 +53,9 @@ class CharacterSegmentationConfig:
     log_level: int = logging.DEBUG
 
     # show debug or not
-    show_line_remover: bool = False
+    show_line_remover: bool = True
     show_blank_trimmer: bool = False
-    show_GenCandidate: bool = True
+    show_GenCandidate: bool = False
     show_visualizer: bool = False
 
 

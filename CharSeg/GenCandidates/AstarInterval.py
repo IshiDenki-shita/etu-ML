@@ -80,7 +80,7 @@ class AstarInterval:
 
         context.candidates = borderlines
         context.candidate_costs = costs
-        logger.debug("%d 本の境界線候補を列挙しました", len(borderlines))
+        logger.debug("%d candidates raised", len(borderlines))
 
         if self.debug:
             self.visualize_candidates(
