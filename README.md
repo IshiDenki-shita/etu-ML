@@ -8,12 +8,12 @@ run this command in terminal. Don't forget installing python 3.11
 python3.11 -m venv .venv
 
 ## how to run
-You can start whole etu-ML function with shell commands below
 
+- CharSeg
 cd [path to etu-ML]
 python -m CharSeg.app
 
-## how to tune parameters
+## how to tune parameters (CharSeg)
 
 - related to debugging
 parameters is all assosiated in app.py
