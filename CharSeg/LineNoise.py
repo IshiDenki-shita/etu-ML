@@ -798,13 +798,16 @@ class LineNoiseRemover:
         plt.show(block=False)
 
     def _visualize_merge(self, needed_lines, endpoints, pairs, connected_lines):
-        fig, axes = plt.subplots(4, 1, figsize=(8, 8))
+        # 縦に4つ並べるレイアウト
+        fig, axes = plt.subplots(4, 1, figsize=(8, 16))
         fig.patch.set_facecolor("lightgray")
+        fig.suptitle("Merge Phase", fontsize=14)
 
-        # 共通のベース描画関数（needed_linesを薄く描く）
+        # 共通のベース描画（needed_linesをグレーで描画）
         def draw_base(canvas):
             for line in needed_lines:
                 for i in range(len(line) - 1):
+                    # BGR順に注意 (y, x)
                     cv2.line(
                         canvas,
                         (line[i][1], line[i][0]),
@@ -821,22 +824,51 @@ class LineNoiseRemover:
 
         # 2. endpoints + direction + needed_lines
         canvas2 = draw_base(np.zeros((*self.image_shape, 3), dtype=np.uint8))
-        # ここにendpointsとdirectionを鮮やかな色で描画
+        for ep in endpoints:
+            y, x = ep.point
+            # 端点を鮮やかな緑で
+            cv2.circle(canvas2, (x, y), 4, (0, 255, 0), -1)
+            # 方向ベクトルを鮮やかな赤で
+            dy, dx = ep.direction
+            cv2.arrowedLine(
+                canvas2, (x, y), (int(x + dx * 20), int(y + dy * 20)), (255, 0, 0), 2
+            )
         axes[1].imshow(canvas2)
+        axes[1].set_title("2. Endpoints & Directions")
 
         # 3. pairs + needed_lines
         canvas3 = draw_base(np.zeros((*self.image_shape, 3), dtype=np.uint8))
-        # ここにpairsを鮮やかな色で描画
+        for i, j in pairs:
+            p1, p2 = endpoints[i].point, endpoints[j].point
+            # 接続ペアを鮮やかなマゼンタで
+            cv2.line(canvas3, (p1[1], p1[0]), (p2[1], p2[0]), (255, 0, 255), 2)
         axes[2].imshow(canvas3)
+        axes[2].set_title("3. Connected Pairs")
 
-        # 4. connected_lines
+        # 4. connected_lines (下地は無しで鮮明に)
         canvas4 = np.zeros((*self.image_shape, 3), dtype=np.uint8)
-        # ... (色分け描画) ...
+        cmap = colormaps.get_cmap("hsv")
+        for idx, line in enumerate(connected_lines):
+            # HSVで色分け
+            color = tuple(
+                int(c * 255) for c in cmap(idx / max(1, len(connected_lines)))[:3]
+            )
+            bgr_color = (color[2], color[1], color[0])
+            for i in range(len(line) - 1):
+                cv2.line(
+                    canvas4,
+                    (line[i][1], line[i][0]),
+                    (line[i + 1][1], line[i + 1][0]),
+                    bgr_color,
+                    2,
+                )
         axes[3].imshow(canvas4)
+        axes[3].set_title("4. Final Connected Lines")
 
         for ax in axes:
             ax.set_facecolor("whitesmoke")
             ax.axis("off")
+
         plt.tight_layout()
         plt.show(block=False)
 
