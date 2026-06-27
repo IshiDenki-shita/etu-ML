@@ -44,15 +44,13 @@ class CharacterSegmentationConfig:
     # input / output
     input_dir: Path = Path("photos/sample/cells")
     input_one_path = Path("photos/sample/cells/gyoza4.jpeg")
-    go_all_sample: bool = False
-    output_dir: Path = Path("experiments/CharSeg/outputs")
 
     # debug
-    save_debug_image: bool = True
     enable_logging: bool = True
     log_level: int = logging.DEBUG
+    go_all_sample: bool = False
 
-    # show debug or not
+    # show debug image or not
     show_line_remover: bool = True
     show_blank_trimmer: bool = False
     show_GenCandidate: bool = False
@@ -62,11 +60,6 @@ class CharacterSegmentationConfig:
 class CharacterSegmenter:
     def __init__(self, config: CharacterSegmentationConfig) -> None:
         self.cfg = config
-
-        self.cfg.output_dir.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
 
         self.preprocesser = Preprocesser()
         self.line_remover = LineNoiseRemover(debug=self.cfg.show_line_remover)

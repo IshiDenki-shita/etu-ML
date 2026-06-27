@@ -1,10 +1,12 @@
 import logging
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Tuple, Sequence
 
 import cv2
 import numpy as np
 from scipy.spatial import cKDTree
+from matplotlib import pyplot as plt
+from matplotlib import colormaps
 from tqdm import tqdm
 
 from CharSeg.context import Context
@@ -58,6 +60,7 @@ class _Endpoint:
 
 class LineNoiseRemover:
     cfg = LNRConfig()
+    image_shape: Tuple
 
     def __init__(self, debug: bool = False):
         self.debug = debug
@@ -69,11 +72,11 @@ class LineNoiseRemover:
         if binary is None:
             raise ValueError("contextのpreprocessedがNoneです。")
 
+        self.image_shape = binary.shape
+
         binary = self.remove_lines(binary, target_theta=0)
         binary = self.remove_lines(binary, target_theta=np.pi / 2)
         context.line_removed = binary
-
-        self.visualize(context)
 
     def remove_lines(self, binary: np.ndarray, target_theta) -> np.ndarray:
         lines = self.detect_lines(binary, target_theta)
@@ -88,6 +91,17 @@ class LineNoiseRemover:
         contour_vectors = self.arrange_contour_vectors2(contours)
         direct_lines = self.detect_direct_line(contour_vectors)
         needed_lines = self.pick_needed_line(direct_lines, target_theta)
+
+        if self.debug:
+            self._visualize_detection(
+                binary,
+                contours,
+                contour_vectors,
+                direct_lines,
+                needed_lines,
+                target_theta,
+            )
+
         return needed_lines
 
     def merge_lines(
@@ -102,14 +116,17 @@ class LineNoiseRemover:
 
         connected_lines = self._trace_chain(connectable, endpoints, adjacency)
 
+        if self.debug:
+            self._visualize_merge(lines, endpoints, pairs, connected_lines)
+
         return connected_lines + standalone
 
     def erase_lines(
         self, binary: np.ndarray, lines: List[List[Tuple[int, int]]]
     ) -> np.ndarray:
-        assert binary is None
 
-        line_image = self.draw_straight_line(binary.shape, lines)
+        h, w = binary.shape
+        line_image = self.draw_straight_line((h, w), lines)
         result = self.remove_noise_line(binary, line_image)
         return result
 
@@ -681,6 +698,12 @@ class LineNoiseRemover:
         )
 
         logger.debug(f"remove {len(needless_contours)} needless_contours")
+
+        if self.debug:
+            self._visualize_erase(
+                binary, line_image, half_way, needless_contours, removed
+            )
+
         return removed
 
     def remove_inside_contours(self, binary, contours):
@@ -703,21 +726,161 @@ class LineNoiseRemover:
     # -------------------------
     # Debug
     # -------------------------
-    def visualize(self, context: Context) -> None:
-        if not self.debug:
-            return
 
-        import matplotlib.pyplot as plt
+    def _visualize_detection(
+        self,
+        binary: np.ndarray,
+        contours: Sequence[np.ndarray],
+        contour_vectors: List[ContourVectors],
+        direct_lines: List[List[Tuple[int, int]]],
+        needed_lines: List[List[Tuple[int, int]]],
+        target_theta: float,
+    ) -> None:
+        """Detectionフェーズの視覚化"""
+        fig, axes = plt.subplots(4, 1, figsize=(8, 8))
+        fig.patch.set_facecolor("lightgray")  # ウィンドウ背景をグレーに
+        fig.suptitle(f"Detection Phase (Target Theta: {np.rad2deg(target_theta):.0f}°)")
 
-        fig, axes = plt.subplots(2, 1, figsize=(8, 8))
+        # 背景用にカラー化
+        base_bgr = cv2.cvtColor(binary, cv2.COLOR_GRAY2BGR)
 
-        axes[0].imshow(context.preprocessed, cmap="gray")
-        axes[0].set_title("Preprocessed")
-        axes[0].axis("off")
+        # 1. contours
+        img_contours = base_bgr.copy()
+        cv2.drawContours(img_contours, contours, -1, (0, 255, 0), 1)
+        axes[0].imshow(cv2.cvtColor(img_contours, cv2.COLOR_BGR2RGB))
+        axes[0].set_title("1. Contours")
 
-        axes[1].imshow(context.line_removed, cmap="gray")
-        axes[1].set_title("Line Removed")
-        axes[1].axis("off")
+        # 2. contours + contour_vectors
+        img_vectors = base_bgr.copy()
+        for cv_data in contour_vectors:
+            # 視認性のため適度に間引いてベクトル（接線）を描画
+            step = max(1, len(cv_data.points) // 10)
+            for i in range(0, len(cv_data.points), step):
+                y, x = cv_data.points[i]
+                vx, vy = cv_data.tangents[i]
+                # ベクトルを正規化して描画
+                norm = np.hypot(vx, vy)
+                if norm > 0:
+                    vx, vy = (vx / norm) * 10, (vy / norm) * 10
+                    cv2.arrowedLine(
+                        img_vectors,
+                        (int(x), int(y)),
+                        (int(x + vx), int(y + vy)),
+                        (255, 0, 0),
+                        1,
+                    )
+        axes[1].imshow(cv2.cvtColor(img_vectors, cv2.COLOR_BGR2RGB))
+        axes[1].set_title("2. Contour Vectors")
 
-        plt.subplots_adjust(left=0.02, right=0.98, top=0.95, bottom=0.02, hspace=0.1)
-        plt.show()
+        # 3. binary + direct_lines
+        img_direct = base_bgr.copy()
+        for line in direct_lines:
+            for i in range(len(line) - 1):
+                y1, x1 = line[i]
+                y2, x2 = line[i + 1]
+                cv2.line(img_direct, (x1, y1), (x2, y2), (0, 255, 255), 1)
+        axes[2].imshow(cv2.cvtColor(img_direct, cv2.COLOR_BGR2RGB))
+        axes[2].set_title("3. Direct Lines (Before Angle Filter)")
+
+        # 4. binary + needed_lines
+        img_needed = base_bgr.copy()
+        for line in needed_lines:
+            for i in range(len(line) - 1):
+                y1, x1 = line[i]
+                y2, x2 = line[i + 1]
+                cv2.line(img_needed, (x1, y1), (x2, y2), (0, 0, 255), 2)
+        axes[3].imshow(cv2.cvtColor(img_needed, cv2.COLOR_BGR2RGB))
+        axes[3].set_title("4. Needed Lines (After Angle Filter)")
+
+        for ax in axes.flatten():
+            ax.axis("off")
+        plt.tight_layout()
+        plt.show(block=False)
+
+    def _visualize_merge(self, needed_lines, endpoints, pairs, connected_lines):
+        fig, axes = plt.subplots(4, 1, figsize=(8, 8))
+        fig.patch.set_facecolor("lightgray")
+
+        # 共通のベース描画関数（needed_linesを薄く描く）
+        def draw_base(canvas):
+            for line in needed_lines:
+                for i in range(len(line) - 1):
+                    cv2.line(
+                        canvas,
+                        (line[i][1], line[i][0]),
+                        (line[i + 1][1], line[i + 1][0]),
+                        (100, 100, 100),
+                        1,
+                    )
+            return canvas
+
+        # 1. needed_lines 単体
+        canvas1 = draw_base(np.zeros((*self.image_shape, 3), dtype=np.uint8))
+        axes[0].imshow(canvas1)
+        axes[0].set_title("1. Needed Lines")
+
+        # 2. endpoints + direction + needed_lines
+        canvas2 = draw_base(np.zeros((*self.image_shape, 3), dtype=np.uint8))
+        # ここにendpointsとdirectionを鮮やかな色で描画
+        axes[1].imshow(canvas2)
+
+        # 3. pairs + needed_lines
+        canvas3 = draw_base(np.zeros((*self.image_shape, 3), dtype=np.uint8))
+        # ここにpairsを鮮やかな色で描画
+        axes[2].imshow(canvas3)
+
+        # 4. connected_lines
+        canvas4 = np.zeros((*self.image_shape, 3), dtype=np.uint8)
+        # ... (色分け描画) ...
+        axes[3].imshow(canvas4)
+
+        for ax in axes:
+            ax.set_facecolor("whitesmoke")
+            ax.axis("off")
+        plt.tight_layout()
+        plt.show(block=False)
+
+    def _visualize_erase(
+        self,
+        binary: np.ndarray,
+        line_image: np.ndarray,
+        half_way: np.ndarray,
+        needless_contours: list,
+        line_removed: np.ndarray,
+    ) -> None:
+        """Eraseフェーズの視覚化"""
+        fig, axes = plt.subplots(4, 1, figsize=(8, 8))
+        fig.suptitle("Erase Phase")
+
+        # 1. line_image (入力された消去用マスクの元画像)
+        axes[0].imshow(line_image, cmap="gray")
+        axes[0].set_title("1. Line Image (Ordered Map)")
+
+        # 2. mask (実際に引き算に使われる塗りつぶし領域)
+        # remove_inside_contours と同じ要領で可視化用マスクを再生成
+        mask_vis = np.zeros_like(binary, dtype=np.uint8)
+        contours, _ = cv2.findContours(
+            line_image, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
+        )
+        cv2.drawContours(mask_vis, contours, -1, [255], -1)
+        axes[1].imshow(mask_vis, cmap="gray")
+        axes[1].set_title("2. Filled Mask")
+
+        # 3. half_way + needless_contours
+        img_halfway = cv2.cvtColor(half_way, cv2.COLOR_GRAY2BGR)
+        cv2.drawContours(
+            img_halfway, needless_contours, -1, (255, 0, 0), -1
+        )  # 赤で塗りつぶし
+        axes[2].imshow(cv2.cvtColor(img_halfway, cv2.COLOR_BGR2RGB))
+        axes[2].set_title(f"3. Halfway + Needless (Area < {self.cfg.min_char_domain})")
+
+        # 4. line_removed
+        axes[3].imshow(line_removed, cmap="gray")
+        axes[3].set_title("4. Final Line Removed")
+
+        for ax in axes.flatten():
+            ax.axis("off")
+        plt.tight_layout()
+
+        # 最後のプロットなのでブロッキングしてユーザーに見せる
+        plt.show(block=True)
