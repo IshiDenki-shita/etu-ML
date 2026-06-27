@@ -7,7 +7,7 @@ import logging
 
 from CharSeg.context import Context
 from CharSeg.preprocess import Preprocesser
-from CharSeg.LineNoise import LineNoiseRemover
+from CharSeg.LineNoise.LineNoiseBold import LineNoiseRemover
 from CharSeg.BlankTrim import BlankTrimmer
 from CharSeg.GenCandidates.AstarInterval import AstarInterval
 from CharSeg.DPselecter import DPselecter
@@ -47,7 +47,7 @@ class CharacterSegmentationConfig:
     input_one_path = Path("photos/sample/cells/gyoza4.jpeg")
 
     # debug
-    go_all_sample: bool = False
+    go_all_sample: bool = True
     go_ramdomly: bool = True
     enable_logging: bool = True
     log_level: int = logging.DEBUG

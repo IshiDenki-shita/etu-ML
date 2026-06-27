@@ -19,7 +19,7 @@ class LNRConfig:
     # debug
     show_detection_part: bool = True
     show_merging_part: bool = True
-    show_eracing_part: bool = False
+    show_eracing_part: bool = True
 
     # contour vector
     cont_nighr_len: int = 10
