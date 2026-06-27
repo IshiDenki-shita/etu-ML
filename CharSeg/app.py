@@ -44,7 +44,7 @@ IMAGE_EXTENSIONS = {".jpeg", ".jpg", ".png", ".bmp", ".tiff"}
 class CharacterSegmentationConfig:
     # input / output
     input_dir: Path = Path("photos/sample/cells")
-    input_one_path = Path("photos/sample/cells/gyoza4.jpeg")
+    input_one_path = Path("photos/sample/cells/gomachige.jpeg")
 
     # debug
     go_all_sample: bool = True

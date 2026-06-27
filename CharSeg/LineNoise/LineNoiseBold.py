@@ -5,7 +5,7 @@
 
 import logging
 from dataclasses import dataclass
-from typing import List, Tuple, Sequence
+from typing import List, Tuple, Sequence, cast
 
 import cv2
 import numpy as np
@@ -34,7 +34,7 @@ class LNRConfig:
     min_length_thresh: np.float16 = np.float16(20)
     target_theta_horizontal: np.float16 = np.deg2rad(0, dtype=np.float16)
     target_theta_vertical: np.float16 = np.deg2rad(90, dtype=np.float16)
-    target_theta_tolerance: np.float16 = np.deg2rad(3, dtype=np.float16)
+    target_theta_tolerance: np.float16 = np.deg2rad(5, dtype=np.float16)
 
     # line connection
     connect_dist_thresh: float = 300
@@ -717,6 +717,7 @@ class LineNoiseRemover:
 
         kernel = np.ones((3, 3), np.uint8)
         mask = cv2.morphologyEx(mask, cv2.MORPH_DILATE, kernel)
+        mask = cast(np.ndarray, mask)
 
         removed = binary.copy()
         removed[mask > 0] = 0

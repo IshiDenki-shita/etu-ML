@@ -40,7 +40,7 @@ class BlankTrimmer:
 
         self.cfg.blank_horizontal_thresh = max(10, int(10 * scale))
         self.cfg.blank_vertical_thresh = max(10, int(10 * scale))
-        self.cfg.noise_size_thresh = int(h * w * 1e-4)
+        self.cfg.noise_size_thresh = int(h * w * 5e-4)
 
         if line_removed is None:
             raise ValueError("contextのline_removedがNoneです。")
