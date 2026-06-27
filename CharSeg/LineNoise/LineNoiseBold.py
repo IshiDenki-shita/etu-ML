@@ -28,7 +28,7 @@ class LNRConfig:
 
     # contour vector
     cont_nighr_len: int = 10
-    max_theta_thresh: np.float16 = np.deg2rad(2, dtype=np.float16)
+    max_theta_thresh: np.float16 = np.deg2rad(4, dtype=np.float16)
 
     # picking vectors
     min_length_thresh: np.float16 = np.float16(20)
@@ -137,7 +137,7 @@ class LineNoiseRemover:
     ) -> np.ndarray:
 
         h, w = binary.shape
-        line_image = self.draw_straight_line((h, w), lines)
+        line_image = self.draw_bold_line((h, w), lines)
         result = self.remove_noise_line(binary, line_image)
         return result
 
@@ -625,7 +625,7 @@ class LineNoiseRemover:
     # -------------------------
     # Erase
     # -------------------------
-    def draw_Bold_line(
+    def draw_bold_line(
         self, image_shape: Tuple[int, int], lines: List[List[Tuple[int, int]]]
     ) -> np.ndarray:
         straight_map = np.zeros(image_shape, dtype=np.uint8)
@@ -644,10 +644,8 @@ class LineNoiseRemover:
                     thickness=1,
                 )
 
-        kernel = np.ones((3, 3), np.uint8)
-        straight_map = cv2.morphologyEx(
-            straight_map, cv2.MORPH_DILATE, kernel, iterations=100
-        )
+        kernel = np.ones((10, 10), np.uint8)
+        straight_map = cv2.morphologyEx(straight_map, cv2.MORPH_CLOSE, kernel)
 
         contours, _ = cv2.findContours(
             straight_map,
@@ -716,6 +714,9 @@ class LineNoiseRemover:
                 color=[255],
                 thickness=-1,
             )
+
+        kernel = np.ones((3, 3), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_DILATE, kernel)
 
         removed = binary.copy()
         removed[mask > 0] = 0
