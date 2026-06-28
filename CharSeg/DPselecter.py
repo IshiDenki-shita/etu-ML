@@ -32,10 +32,6 @@ class DPselecterConfig:
 
 
 class DPselecter:
-    # 期待する文字幅の区間 [min_width, max_width]（px単位）。
-    # 区間内であれば「繋ぐボーナス」が満額、外れるとその逸脱量に応じて減衰する。
-    min_char_width: int
-    max_char_width: int
 
     def __init__(self, config: DPselecterConfig | None = None) -> None:
         self.cfg = config or DPselecterConfig()
@@ -49,27 +45,27 @@ class DPselecter:
         if candidates is None or blank_trimmed is None:
             raise ValueError("contextのcandidatesがNoneです。")
 
-        self.adopt_char_width(blank_trimmed)
+        max_cw, min_cw = self.adopt_char_width(blank_trimmed)
 
         context.selected = self.select_borderline(
-            candidates,
-            costs=context.candidate_costs,
+            candidates, costs=context.candidate_costs, expected_cw=(max_cw, min_cw)
         )
 
     def adopt_char_width(self, blank_trimmed: np.ndarray):
         h, w = blank_trimmed.shape
 
-        self.min_char_width = int(h * 1.2)
-        self.max_char_width = int(h * 0.8)
-        logger.debug(
-            f"DPselecter: char width {self.min_char_width} ~ {self.max_char_width}"
-        )
+        max_char_width = int(h * 1.2)
+        min_char_width = int(h * 0.8)
+        logger.debug(f"DPselecter: char width {min_char_width} ~ {max_char_width}")
+
+        return max_char_width, min_char_width
 
     def select_borderline(
         self,
         candidates: list[Borderline],
         *,
         costs: list[float] | None = None,
+        expected_cw: tuple[int, int],
     ) -> list[Borderline]:
 
         if not candidates:
@@ -108,7 +104,7 @@ class DPselecter:
             for j in range(i):
                 if score[j] == NEG_INF:
                     continue
-                bonus = self._width_bonus(sorted_xs[j], sorted_xs[i])
+                bonus = self._width_bonus(sorted_xs[j], sorted_xs[i], expected_cw)
                 cand_score = score[j] + bonus - sorted_costs[i]
                 if cand_score > best:
                     best = cand_score
@@ -155,7 +151,9 @@ class DPselecter:
         closest_point = min(borderline, key=lambda p: abs(p[1] - y_center))
         return float(closest_point[0])
 
-    def _width_bonus(self, x_prev: float, x_curr: float) -> float:
+    def _width_bonus(
+        self, x_prev: float, x_curr: float, expected_cw: tuple[int, int]
+    ) -> float:
         """
         隣接する2本の境界線間の文字幅が、期待区間
         [min_char_width, max_char_width] にどれだけ合致しているかに
@@ -165,11 +163,12 @@ class DPselecter:
         0未満には下がらない(繋ぐことが「損」にしかならない事態を避けるため)。
         """
         width = x_curr - x_prev
+        max_char_width, min_char_width = expected_cw
 
-        if width < self.min_char_width:
-            deviation = self.min_char_width - width
-        elif width > self.max_char_width:
-            deviation = width - self.max_char_width
+        if width < min_char_width:
+            deviation = min_char_width - width
+        elif width > max_char_width:
+            deviation = width - max_char_width
         else:
             return self.cfg.width_bonus
 

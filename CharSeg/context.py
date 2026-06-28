@@ -16,7 +16,6 @@ class Context:
     preprocessed: Optional[np.ndarray] = None
 
     # line removing
-    line_suspect: Optional[np.ndarray] = None
     line_removed: Optional[np.ndarray] = None
 
     # trimming blank space
