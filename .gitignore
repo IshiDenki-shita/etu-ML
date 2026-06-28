@@ -4,6 +4,7 @@ __pycache__
 
 *.npy
 *.pth
+*.log
 
 experiments/CharSeg/protetypes/ETLdatasets/
 experiments/CharSeg/CharSeg
