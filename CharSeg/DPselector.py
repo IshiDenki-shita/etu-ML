@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from dataclasses import dataclass
 import os
 
@@ -13,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DPselectorConfig:
-    width_bonus: float = 500.0
-    width_penalty_weight: float = 5.0
+    width_bonus: float = 800.0
+    width_penalty_weight: Optional[float] = None  # 文字幅の予想値より決定
     allow_empty_selection: bool = False
 
 
@@ -87,8 +88,12 @@ class DPselector:
     def adopt_char_width(self, blank_trimmed: np.ndarray):
         h, w = blank_trimmed.shape
         max_char_width = int(h * 1.2)
-        min_char_width = int(h * 0.8)
-        logger.debug(f"DPselecter: char width {min_char_width} ~ {max_char_width}")
+        min_char_width = int(h * 0.7)
+
+        # 満額スコア < max(狭間隔ペナルティ) を満たす
+        self.cfg.width_penalty_weight = self.cfg.width_bonus // min_char_width
+
+        logger.debug(f"expected max/min char width {min_char_width} ~ {max_char_width}")
         return max_char_width, min_char_width
 
     def select_borderline(
