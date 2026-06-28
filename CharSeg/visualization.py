@@ -86,11 +86,11 @@ class Visualizer:
             ax.axis("off")
 
         fig.subplots_adjust(
-            left=0.02,
-            right=0.98,
-            top=0.98,
-            bottom=0.02,
-            hspace=0.03,
+            left=0.05,
+            right=0.95,
+            top=0.90,
+            bottom=0.05,
+            hspace=0.2,
         )
         assert fig.canvas.manager is not None
         fig.canvas.manager.set_window_title("Character Segmentation Visualization")
