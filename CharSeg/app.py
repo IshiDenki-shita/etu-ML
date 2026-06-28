@@ -10,7 +10,7 @@ from CharSeg.preprocess import Preprocesser
 from CharSeg.LineNoise.LineNoiseBold import LineNoiseRemover
 from CharSeg.BlankTrim import BlankTrimmer
 from CharSeg.GenCandidates.AstarInterval import AstarInterval
-from CharSeg.DPselecter import DPselecter
+from CharSeg.DPselector import DPselector
 from CharSeg.visualization import Visualizer
 
 logging.basicConfig(
@@ -56,7 +56,8 @@ class CharacterSegmentationConfig:
     show_line_remover: bool = False
     show_blank_trimmer: bool = False
     show_GenCandidate: bool = False
-    show_visualizer: bool = True
+    show_DPslector: bool = True
+    show_visualizer: bool = False
 
 
 class CharacterSegmenter:
@@ -67,7 +68,7 @@ class CharacterSegmenter:
         self.line_remover = LineNoiseRemover(debug=self.cfg.show_line_remover)
         self.blank_trimmer = BlankTrimmer(debug=self.cfg.show_blank_trimmer)
         self.candidate = AstarInterval(debug=self.cfg.show_GenCandidate)
-        self.dpselecter = DPselecter()
+        self.dpselecter = DPselector(debug=self.cfg.show_DPslector)
         self.visualizer = Visualizer(debug=self.cfg.show_visualizer)
 
         setup_logging(
@@ -109,7 +110,7 @@ class CharacterSegmenter:
         image_paths = self._iter_image_paths()
 
         if not image_paths:
-            logging.warning(f"画像が見つかりません: {self.cfg.input_dir}")
+            logger.warning(f"画像が見つかりません: {self.cfg.input_dir}")
             return
 
         logger.debug(f"{len(image_paths)} 件の画像を処理します")
