@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+import os
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -23,7 +24,11 @@ class DPselector:
     def __init__(self, debug: bool) -> None:
         self.debug = debug
         self._last_selected_orig_indices: list[int] = []
-        plt.rcParams["font.family"] = "Hiragino Sans"
+
+        if os.name == "nt":
+            plt.rcParams["font.family"] = "MS Gothic"
+        else:
+            plt.rcParams["font.family"] = "Hiragino Sans"
 
     def process(self, context: Context) -> None:
         logger.debug("分割境界線の候補から、採用する境界線をDPで選択します。")
