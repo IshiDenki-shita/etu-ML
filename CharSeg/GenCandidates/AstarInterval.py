@@ -17,10 +17,7 @@ from matplotlib.colors import Normalize
 import numpy as np
 from scipy.ndimage import distance_transform_edt
 
-from CharSeg.GenCandidates.ConnectLine import (
-    Borderline,
-    borderline_to_points,
-)
+from CharSeg.GenCandidates.ConnectLine import Borderline
 from CharSeg.context import Context
 
 logger = logging.getLogger(__name__)
@@ -95,8 +92,9 @@ class AstarInterval:
         if dist is None:
             raise ValueError("distがNoneです。")  # このraiseがないと下の行で警告
 
-        cost = 10.0 / (dist + 1e-3)
-        cost = cost.astype(np.float64, copy=False)
+        cost = binary
+        # cost = 10.0 / (dist + 1e-3)
+        # cost = cost.astype(np.float64, copy=False)
         cost[binary_bool] = self.cfg.char_pixel_cost
         return dist.astype(np.float64), cost
 

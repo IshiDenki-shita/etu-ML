@@ -1,5 +1,4 @@
 import logging
-from typing import List, Tuple
 from dataclasses import dataclass
 
 import numpy as np

@@ -45,6 +45,7 @@ class CharacterSegmentationConfig:
     # input / output
     input_dir: Path = Path("photos/sample/cells")
     input_one_path = Path("photos/sample/cells/karaage3.jpeg")
+    input_one_path = Path("photos/sample/cells/tantan5.jpeg")
 
     # debug
     go_all_sample: bool = True

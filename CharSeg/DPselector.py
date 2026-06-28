@@ -14,9 +14,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DPselectorConfig:
-    width_bonus: float = 800.0
+    width_bonus: float = 700.0
     width_penalty_weight: Optional[float] = None  # 文字幅の予想値より決定
-    allow_empty_selection: bool = False
 
 
 class DPselector:
@@ -87,11 +86,11 @@ class DPselector:
 
     def adopt_char_width(self, blank_trimmed: np.ndarray):
         h, w = blank_trimmed.shape
-        max_char_width = int(h * 1.2)
-        min_char_width = int(h * 0.7)
+        max_char_width = int(h * 1.0)
+        min_char_width = int(h * 0.8)
 
         # 満額スコア < max(狭間隔ペナルティ) を満たす
-        self.cfg.width_penalty_weight = self.cfg.width_bonus // min_char_width
+        self.cfg.width_penalty_weight = 1.2 * (self.cfg.width_bonus // min_char_width)
 
         logger.debug(f"expected max/min char width {min_char_width} ~ {max_char_width}")
         return max_char_width, min_char_width
@@ -193,12 +192,13 @@ class DPselector:
         max_char_width, min_char_width = expected_cw
 
         if width < min_char_width:
-            deviation = min_char_width - width
+            deviation = (min_char_width - width) ** 2 // 20
         elif width > max_char_width:
-            deviation = width - max_char_width
+            deviation = (width - max_char_width) ** 2 // 10
         else:
             return self.cfg.width_bonus
 
+        assert self.cfg.width_penalty_weight
         bonus = self.cfg.width_bonus - self.cfg.width_penalty_weight * deviation
         return max(0.0, bonus)
 
