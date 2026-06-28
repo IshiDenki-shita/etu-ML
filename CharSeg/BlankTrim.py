@@ -50,6 +50,7 @@ class BlankTrimmer:
         )
 
         blank_trimmed = self.trim_blank_area(binary=small_fragment_removed)
+        blank_trimmed = self.add_blank_row(blank_trimmed)
 
         context.blank_trimmed = blank_trimmed
 
@@ -117,6 +118,12 @@ class BlankTrimmer:
             return binary
 
         return binary[top : bottom + 1, left : right + 1]
+
+    def add_blank_row(self, binary: np.ndarray):
+        """画像の左端に境界線が欲しいので、低コストになる道を開けておく"""
+        thin_path = np.zeros((binary.shape[0], 1))
+        binary = np.hstack([thin_path, binary])
+        return binary
 
     def visualize_blank_trim(
         self,

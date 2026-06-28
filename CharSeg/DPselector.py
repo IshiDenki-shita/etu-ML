@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DPselectorConfig:
-    width_bonus: float = 400.0
+    width_bonus: float = 500.0
     width_penalty_weight: float = 5.0
     allow_empty_selection: bool = False
 
@@ -23,7 +23,6 @@ class DPselector:
     def __init__(self, debug: bool) -> None:
         self.debug = debug
         self._last_selected_orig_indices: list[int] = []
-        # Mac用の日本語フォント（ヒラギノ角ゴ）を設定
         plt.rcParams["font.family"] = "Hiragino Sans"
 
     def process(self, context: Context) -> None:
@@ -37,12 +36,48 @@ class DPselector:
 
         max_cw, min_cw = self.adopt_char_width(blank_trimmed)
 
+        candidates_with_left_edge, costs_with_left_edge = self._add_left_edge_candidate(
+            candidates, context.candidate_costs, blank_trimmed
+        )
+
         context.selected = self.select_borderline(
-            candidates, costs=context.candidate_costs, expected_cw=(max_cw, min_cw)
+            candidates_with_left_edge,
+            costs=costs_with_left_edge,
+            expected_cw=(max_cw, min_cw),
         )
 
         if self.debug:
-            self.visualize(context, expected_cw=(max_cw, min_cw))
+            self.visualize(
+                context,
+                expected_cw=(max_cw, min_cw),
+                candidates=candidates_with_left_edge,
+                costs=costs_with_left_edge,
+                blank_trimmed=blank_trimmed,
+            )
+
+    def _add_left_edge_candidate(
+        self,
+        candidates: list[Borderline],
+        costs: list[float] | None,
+        blank_trimmed: np.ndarray,
+    ) -> tuple[list[Borderline], list[float]]:
+        """
+        画像左端(x=0)を通る垂直な境界線を候補の先頭に追加する。
+        この候補はDPの中でwidth_bonusの計算対象になるが、
+        必ず最終的な選択結果に含まれるよう、後段のDPで
+        「採用しない」ルートを作らない前提で扱う。
+        """
+        h, _ = blank_trimmed.shape
+        left_edge_line: Borderline = [[0, 0], [0, h - 1]]
+
+        new_candidates = [left_edge_line] + list(candidates)
+
+        if costs is None or len(costs) != len(candidates):
+            new_costs = [0.0] * (len(candidates) + 1)
+        else:
+            new_costs = [0.0] + list(costs)
+
+        return new_candidates, new_costs
 
     def adopt_char_width(self, blank_trimmed: np.ndarray):
         h, w = blank_trimmed.shape
@@ -74,28 +109,41 @@ class DPselector:
         sorted_xs = [rep_xs[i] for i in order]
         n = len(order)
 
+        left_edge_sorted_idx = int(np.argmin(sorted_xs))
+
         NEG_INF = float("-inf")
         score = [NEG_INF] * n
         parent: list[int | None] = [None] * n
 
         for i in range(n):
-            best = -sorted_costs[i]
-            best_parent = None
+            if i == left_edge_sorted_idx:
+                # left_edgeは「何も採用していない状態」から必ず採用される
+                # 唯一の起点。これにより、left_edgeを経由しないスコアの
+                # 系列は作られなくなる。
+                best = -sorted_costs[i]
+                best_parent = None
+            else:
+                # left_edge以外は「起点」になれない(必ずどこかのjを経由する)。
+                # ただしjがleft_edge自身であるケースも通常のループで含まれる。
+                best = NEG_INF
+                best_parent = None
 
-            for j in range(i):
-                if score[j] == NEG_INF:
-                    continue
-                bonus = self._width_bonus(sorted_xs[j], sorted_xs[i], expected_cw)
-                cand_score = score[j] + bonus - sorted_costs[i]
-                if cand_score > best:
-                    best = cand_score
-                    best_parent = j
+                for j in range(i):
+                    if score[j] == NEG_INF:
+                        continue
+                    bonus = self._width_bonus(sorted_xs[j], sorted_xs[i], expected_cw)
+                    cand_score = score[j] + bonus - sorted_costs[i]
+                    if cand_score > best:
+                        best = cand_score
+                        best_parent = j
 
             score[i] = best
             parent[i] = best_parent
 
+        # 終端探索: left_edgeを経由していない候補(score=NEG_INF)は
+        # 自動的に選択対象から除外される。
         end_idx: int | None = None
-        end_score = 0.0 if self.cfg.allow_empty_selection else NEG_INF
+        end_score = NEG_INF
 
         for i in range(n):
             if score[i] > end_score:
@@ -103,8 +151,9 @@ class DPselector:
                 end_idx = i
 
         if end_idx is None:
-            self._last_selected_orig_indices = []
-            return []
+            # left_edge自身しか候補がない、またはすべてNEG_INFの場合
+            self._last_selected_orig_indices = [order[left_edge_sorted_idx]]
+            return [candidates[order[left_edge_sorted_idx]]]
 
         selected_sorted_indices: list[int] = []
         cur: int | None = end_idx
@@ -113,7 +162,6 @@ class DPselector:
             cur = parent[cur]
         selected_sorted_indices.reverse()
 
-        # 可視化用に「採用された候補の元インデックス（x昇順）」を保持しておく
         self._last_selected_orig_indices = [order[i] for i in selected_sorted_indices]
 
         return [candidates[order[i]] for i in selected_sorted_indices]
@@ -152,10 +200,16 @@ class DPselector:
         context: Context,
         *,
         expected_cw: tuple[int, int],
+        candidates: list[Borderline] | None = None,
+        costs: list[float] | None = None,
+        blank_trimmed: np.ndarray | None = None,
     ) -> None:
-        blank_trimmed = context.blank_trimmed
-        candidates = context.candidates
-        costs = context.candidate_costs
+        if blank_trimmed is None:
+            blank_trimmed = context.blank_trimmed
+        if candidates is None:
+            candidates = context.candidates
+        if costs is None:
+            costs = context.candidate_costs
 
         if blank_trimmed is None or candidates is None:
             raise ValueError("visualize()に必要なcontextの値がNoneです。")
@@ -209,7 +263,7 @@ class DPselector:
 
         vmin, vmax = min(costs), max(costs) + 1e-8
         norm = Normalize(vmin=vmin, vmax=vmax)
-        cmap = plt.get_cmap("plasma")  # 暗紫〜明るい黄色（全体的に明るいトーン）
+        cmap = plt.get_cmap("plasma")
 
         for cand, cost in zip(candidates, costs):
             pts = np.asarray(cand)
@@ -236,23 +290,20 @@ class DPselector:
         h, w = blank_trimmed.shape
         ax.imshow(blank_trimmed, cmap="gray")
 
-        # 背景の全候補線は明るい水色（寒色寄り、薄く）
         for cand in candidates:
             pts = np.asarray(cand)
             if len(pts) == 0:
                 continue
             ax.plot(pts[:, 0], pts[:, 1], color="#7EC8E3", linewidth=0.9, alpha=0.35)
 
-        # 採用されたrepresentative_xは明るいオレンジの縦線
         for rep_x in ordered_rep_xs:
             ax.axvline(x=rep_x, color="#FF8C32", linewidth=1.3, alpha=0.95)
 
         ax.set_title("2. Representative X (adopted method only)")
 
-        # y軸は消すが、x軸はpx目盛りとして残す
         ax.set_yticks([])
         ax.set_xlim(0, w)
-        ax.set_ylim(h, 0)  # imshowのy反転を維持
+        ax.set_ylim(h, 0)
         ax.set_xlabel("x (px)", fontsize=8)
         for spine in ["top", "right", "left"]:
             ax.spines[spine].set_visible(False)
@@ -275,18 +326,14 @@ class DPselector:
 
         expected_cw = (max_char_width, min_char_width)
 
-        # 各列x(0~image_width)に対して、「直前の採用境界線1本」を基準にwidth_bonusを計算する。
-        # ・最初の採用境界線より左（まだ基準点が存在しない区間）は計算しない(NaN)。
-        # ・最後の採用境界線より右は、最後の採用境界線を基準点として計算を続ける。
         xs = np.arange(image_width)
         bonuses = np.full(image_width, np.nan, dtype=np.float64)
 
         first_x = ordered_rep_xs[0]
         for x in xs:
             if x < first_x:
-                continue  # 左端: 基準点がまだ無いので計算しない
+                continue
 
-            # xの直前(x以下で最大)の採用境界線を基準点とする
             x_prev = first_x
             for rep_x in ordered_rep_xs:
                 if rep_x <= x:
@@ -300,7 +347,6 @@ class DPselector:
         ax.set_ylabel("width_bonus", color="#FF8C32")
         ax.tick_params(axis="y", labelcolor="#FF8C32")
 
-        # 採用された境界線の位置に縦線を重ねる
         for rep_x in ordered_rep_xs:
             ax.axvline(
                 x=rep_x, color="#1FA2D6", linewidth=1.0, alpha=0.7, linestyle="--"
@@ -320,7 +366,6 @@ class DPselector:
         selected_set = set(selected_indices)
         unselected = [i for i in range(len(candidates)) if i not in selected_set]
 
-        # 不採用候補 = 寒色（明るい水色〜青のグラデーション）
         if unselected:
             cool_cmap = plt.get_cmap("cool")
             for k, i in enumerate(unselected):
@@ -330,7 +375,6 @@ class DPselector:
                 color = cool_cmap(k / max(1, len(unselected) - 1))
                 ax.plot(pts[:, 0], pts[:, 1], color=color, linewidth=0.9, alpha=0.4)
 
-        # 採用候補 = 暖色（明るい黄色〜オレンジ〜赤のグラデーション）
         if selected_indices:
             warm_cmap = plt.get_cmap("autumn")
             for k, i in enumerate(selected_indices):
