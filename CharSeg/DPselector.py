@@ -17,6 +17,11 @@ class DPselectorConfig:
     width_bonus: float = 700.0
     width_penalty_weight: Optional[float] = None  # 文字幅の予想値より決定
 
+    min_cw_ratio: float = 0.8
+    max_cw_ratio: float = 1.0
+    # width_penalty_weight = weight_scale * (width_bonus // min_char_width)
+    weight_scale: float = 1.2
+
 
 class DPselector:
     cfg = DPselectorConfig()
@@ -86,11 +91,13 @@ class DPselector:
 
     def adopt_char_width(self, blank_trimmed: np.ndarray):
         h, w = blank_trimmed.shape
-        max_char_width = int(h * 1.0)
-        min_char_width = int(h * 0.8)
+        max_char_width = int(h * self.cfg.max_cw_ratio)
+        min_char_width = int(h * self.cfg.min_cw_ratio)
 
         # 満額スコア < max(狭間隔ペナルティ) を満たす
-        self.cfg.width_penalty_weight = 1.2 * (self.cfg.width_bonus // min_char_width)
+        self.cfg.width_penalty_weight = self.cfg.weight_scale * (
+            self.cfg.width_bonus // min_char_width
+        )
 
         logger.debug(f"expected max/min char width {min_char_width} ~ {max_char_width}")
         return max_char_width, min_char_width

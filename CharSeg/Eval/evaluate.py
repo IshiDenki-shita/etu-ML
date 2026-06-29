@@ -28,7 +28,7 @@ from CharSeg.preprocess import Preprocesser
 from CharSeg.LineNoise.LineNoiseBold import LineNoiseRemover
 from CharSeg.BlankTrim import BlankTrimmer
 from CharSeg.GenCandidates.AstarInterval import AstarInterval
-from CharSeg.DPselector import DPselector
+from CharSeg.DPselector import DPselector, DPselectorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -112,13 +112,23 @@ class Evaluator:
         self.line_remover = LineNoiseRemover(debug=False)
         self.blank_trimmer = BlankTrimmer(debug=False)
         self.candidate_gen = AstarInterval(debug=False)
-        self.dpselector = DPselector(debug=False)
+
+        # 画像名 -> Context (candidates生成済み、DPselector未実行)
+        self._context_cache: dict[str, Context] = {}
 
     def _load_annotations(self) -> dict:
         with open(self.cfg.annotations_path, "r", encoding="utf-8") as f:
             return json.load(f)
 
-    def _run_pipeline(self, image_path: Path) -> Context:
+    def _build_or_get_context(self, image_name: str, image_path: Path) -> Context:
+        """
+        A*候補生成(Preprocesser~AstarInterval)はDPselectorのパラメータに
+        依存しないため、パラメータ探索の対象外。画像ごとに1回だけ実行して
+        キャッシュし、グリッドサーチ時の重複計算を避ける。
+        """
+        if image_name in self._context_cache:
+            return self._context_cache[image_name]
+
         context = Context()
         context.image_path = image_path
 
@@ -126,26 +136,40 @@ class Evaluator:
         self.line_remover.process(context)
         self.blank_trimmer.process(context)
         self.candidate_gen.process(context)
-        self.dpselector.process(context)
 
+        self._context_cache[image_name] = context
         return context
 
-    def evaluate_one(self, image_name: str, record: dict) -> ImageEvalResult | None:
+    def evaluate_one(
+        self,
+        image_name: str,
+        record: dict,
+        dp_config: DPselectorConfig | None = None,
+    ) -> ImageEvalResult | None:
         image_path = self.cfg.input_dir / image_name
         if not image_path.exists():
             logger.warning(f"画像が見つかりません: {image_path}")
             return None
 
-        context = self._run_pipeline(image_path)
+        context = self._build_or_get_context(image_name, image_path)
 
-        if context.selected is None or context.blank_trimmed is None:
+        if context.candidates is None or context.blank_trimmed is None:
+            logger.warning(f"{image_name}: 候補生成に失敗しています。")
+            return None
+
+        dpselector = DPselector(debug=False)
+        if dp_config is not None:
+            dpselector.cfg = dp_config
+        dpselector.process(context)
+
+        if context.selected is None:
             logger.warning(f"{image_name}: DPselectorの出力が不正です。")
             return None
 
         truth_xs = record["representative_xs"]
         pred_xs = [representative_x(b) for b in context.selected]
 
-        _, min_char_width = self.dpselector.adopt_char_width(context.blank_trimmed)
+        _, min_char_width = dpselector.adopt_char_width(context.blank_trimmed)
         tolerance = self.cfg.tolerance_ratio_of_min_char_width * min_char_width
 
         matched_pairs, missed, extra = match_xs(truth_xs, pred_xs, tolerance)
@@ -161,13 +185,15 @@ class Evaluator:
             matched_pred_xs=[pred_xs[pi] for _, pi in matched_pairs],
         )
 
-    def evaluate_all(self) -> list[ImageEvalResult]:
+    def evaluate_all(
+        self, dp_config: DPselectorConfig | None = None
+    ) -> list[ImageEvalResult]:
         annotations = self._load_annotations()
         results: list[ImageEvalResult] = []
 
         for image_name, record in annotations.items():
             try:
-                result = self.evaluate_one(image_name, record)
+                result = self.evaluate_one(image_name, record, dp_config=dp_config)
             except Exception:
                 logger.exception(f"評価中にエラーが発生しました: {image_name}")
                 continue

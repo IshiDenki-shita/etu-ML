@@ -4,7 +4,6 @@ __pycache__
 
 *.npy
 *.pth
-*.log
 
 experiments/CharSeg/protetypes/ETLdatasets/
 experiments/CharSeg/CharSeg
@@ -13,3 +12,7 @@ photos/sample/
 photos/catched/
 photos/cells/
 photos/chars/
+
+optuna_log.txt
+*.log
+*.db
