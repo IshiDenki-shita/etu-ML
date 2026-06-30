@@ -14,6 +14,16 @@ DPselectorConfigのパラメータをOptunaでベイズ最適化する。
     python -m CharSeg.Eval.optuna_search --hours 8
     (Ctrl+Cでいつでも中断可。その時点のベストを表示して終了する)
 
+Macをsleepさせないため:
+
+    sudo pmset disablesleep 1
+    sudo pmset -a lowpowermode 1
+    sudo mdutil -i off /
+
+    sudo pmset disablesleep 0
+    sudo pmset -a lowpowermode 0
+    sudo mdutil -i on /
+
 必要パッケージ:
     pip install optuna
 """

@@ -14,13 +14,19 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DPselectorConfig:
-    width_bonus: float = 700.0
+    width_bonus: float = 1028.146721097928
     width_penalty_weight: Optional[float] = None  # 文字幅の予想値より決定
 
-    min_cw_ratio: float = 0.8
-    max_cw_ratio: float = 1.0
-    # width_penalty_weight = weight_scale * (width_bonus // min_char_width)
-    weight_scale: float = 1.2
+    # 文字幅の予想値 (画像高さ h に対する比率)
+    min_cw_ratio: float = 0.6275017296806547
+    max_cw_ratio: float = 1.2130461173653475
+    # width_penalty_weight = weight_scale * (width_bonus / min_char_width)
+    weight_scale: float = 1.6487968724217137
+
+    # deviation = (理想とのズレ)^2 / divisor
+    # 狭すぎる場合(narrow)と広すぎる場合(wide)で別々のスケールを持つ
+    narrow_penalty_divisor: float = 8.850340203708514
+    wide_penalty_divisor: float = 92.28635357024723
 
 
 class DPselector:
@@ -96,7 +102,7 @@ class DPselector:
 
         # 満額スコア < max(狭間隔ペナルティ) を満たす
         self.cfg.width_penalty_weight = self.cfg.weight_scale * (
-            self.cfg.width_bonus // min_char_width
+            self.cfg.width_bonus / min_char_width
         )
 
         logger.debug(f"expected max/min char width {min_char_width} ~ {max_char_width}")
@@ -199,9 +205,9 @@ class DPselector:
         max_char_width, min_char_width = expected_cw
 
         if width < min_char_width:
-            deviation = (min_char_width - width) ** 2 // 20
+            deviation = (min_char_width - width) ** 2 / self.cfg.narrow_penalty_divisor
         elif width > max_char_width:
-            deviation = (width - max_char_width) ** 2 // 10
+            deviation = (width - max_char_width) ** 2 / self.cfg.wide_penalty_divisor
         else:
             return self.cfg.width_bonus
 
