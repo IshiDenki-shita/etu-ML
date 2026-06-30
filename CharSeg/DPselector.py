@@ -37,7 +37,9 @@ class DPselectorConfig:
     #   asymmetric : 狭すぎる方向は急減衰、広すぎる方向はなだらか
     bonus_shape: BonusShape = "linear"
 
-    # linear / asymmetric で使う: deviation = (ズレ)^2 / divisor
+    # deviation = (ズレ)^2 / divisor
+    # linear: narrow/wideとも narrow_penalty_divisor を使う(対称)
+    # asymmetric: narrowはnarrow_penalty_divisor, wideはwide_penalty_divisorを使う(非対称)
     narrow_penalty_divisor: float = 20.0
     wide_penalty_divisor: float = 10.0
 
@@ -255,11 +257,12 @@ class DPselector:
                 0.0, self.cfg.width_bonus - self.cfg.width_penalty_weight * deviation
             )
 
-        # "linear": 二次減衰 + 0クリップ (デフォルト・従来の挙動)
+        # "linear": 二次減衰 + 0クリップ・対称版 (narrow_penalty_divisorのみ使用)
+        # narrow/wideで非対称にしたい場合は bonus_shape="asymmetric" を使う
         if width < min_cw:
             deviation = (min_cw - width) ** 2 / self.cfg.narrow_penalty_divisor
         elif width > max_cw:
-            deviation = (width - max_cw) ** 2 / self.cfg.wide_penalty_divisor
+            deviation = (width - max_cw) ** 2 / self.cfg.narrow_penalty_divisor
         else:
             return self.cfg.width_bonus
         assert self.cfg.width_penalty_weight
