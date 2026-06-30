@@ -157,9 +157,7 @@ class Evaluator:
             logger.warning(f"{image_name}: 候補生成に失敗しています。")
             return None
 
-        dpselector = DPselector(debug=False)
-        if dp_config is not None:
-            dpselector.cfg = dp_config
+        dpselector = DPselector(debug=False, cfg=dp_config)
         dpselector.process(context)
 
         if context.selected is None:
