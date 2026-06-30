@@ -42,20 +42,26 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GridSearchSpace:
     # グリッドサーチで試す値の一覧。各リストが1軸。全軸の直積を探索する。
-    width_bonus: list[float] = field(default_factory=lambda: [700.0, 900.0, 1200.0])
+    width_bonus: list[float] = field(
+        default_factory=lambda: [50 * i for i in range(14, 24)]
+    )
     min_cw_ratio: list[float] = field(default_factory=lambda: [0.60, 0.65, 0.70, 0.75])
-    max_cw_ratio: list[float] = field(default_factory=lambda: [1.10, 1.30, 1.60, 2.00])
-    weight_scale: list[float] = field(default_factory=lambda: [0.8, 1.0, 1.2])
+    max_cw_ratio: list[float] = field(
+        default_factory=lambda: [0.1 * i for i in range(10, 20)]
+    )
+    weight_scale: list[float] = field(
+        default_factory=lambda: [0.1 * i for i in range(8, 13)]
+    )
     narrow_penalty_divisor: list[float] = field(
-        default_factory=lambda: [10.0, 20.0, 50.0]
+        default_factory=lambda: [10 * i for i in range(1, 6)]
     )
     # asymmetric の時のみ使用 (linearはnarrow_penalty_divisorのみ使う対称版)
     wide_penalty_divisor: list[float] = field(
-        default_factory=lambda: [10.0, 20.0, 50.0]
+        default_factory=lambda: [10 * i for i in range(1, 6)]
     )
     # gaussian の時のみ使用。狭い値=鋭いピーク、広い値=なだらか
     gaussian_sigma_ratio: list[float] = field(
-        default_factory=lambda: [0.15, 0.3, 0.5, 0.8, 1.2]
+        default_factory=lambda: [0.05 * i for i in range(24)]
     )
     bonus_shape: list[str] = field(
         default_factory=lambda: ["linear", "gaussian", "rect", "asymmetric"]

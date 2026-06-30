@@ -115,10 +115,17 @@ class Evaluator:
 
         # 画像名 -> Context (candidates生成済み、DPselector未実行)
         self._context_cache: dict[str, Context] = {}
+        self._annotations_cache: dict | None = None
 
     def _load_annotations(self) -> dict:
-        with open(self.cfg.annotations_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        if self._annotations_cache is None:
+            with open(self.cfg.annotations_path, "r", encoding="utf-8") as f:
+                self._annotations_cache = json.load(f)
+        return self._annotations_cache
+
+    def all_image_names(self) -> list[str]:
+        """annotations.jsonに含まれる全画像名のリスト(train/test分割用)。"""
+        return list(self._load_annotations().keys())
 
     def _build_or_get_context(self, image_name: str, image_path: Path) -> Context:
         """
@@ -184,12 +191,27 @@ class Evaluator:
         )
 
     def evaluate_all(
-        self, dp_config: DPselectorConfig | None = None
+        self,
+        dp_config: DPselectorConfig | None = None,
+        image_names: list[str] | None = None,
     ) -> list[ImageEvalResult]:
+        """
+        image_names を指定すると、その画像のみを評価する(train/test分割用)。
+        Noneの場合はannotations.json内の全画像を評価する。
+        """
         annotations = self._load_annotations()
         results: list[ImageEvalResult] = []
 
-        for image_name, record in annotations.items():
+        target_names = (
+            image_names if image_names is not None else list(annotations.keys())
+        )
+
+        for image_name in target_names:
+            record = annotations.get(image_name)
+            if record is None:
+                logger.warning(f"アノテーションが見つかりません: {image_name}")
+                continue
+
             try:
                 result = self.evaluate_one(image_name, record, dp_config=dp_config)
             except Exception:
