@@ -36,7 +36,13 @@ from dataclasses import dataclass, field
 from CharSeg.DPselector import DPselectorConfig
 from CharSeg.Eval.evaluate import Evaluator, EvalConfig
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(
+    filemode="w",
+    filename="CharSeg/Eval/grid_search_log.log",
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    encoding="utf-8",
+    level=logging.INFO,  # ← 追加。省略するとデフォルトWARNINGになりinfoログが全て捨てられる
+)
 
 
 @dataclass
@@ -201,7 +207,7 @@ def run_grid_search(
     results: list[dict] = []
     combos = list(iter_valid_combos(space))
     n_total = len(combos)
-    print(f"探索する組み合わせ数(重複除去後): {n_total}")
+    logging.info(f"探索する組み合わせ数(重複除去後): {n_total}")
 
     for done, (
         width_bonus,
@@ -249,7 +255,7 @@ def run_grid_search(
 
         if done % 200 == 0 or done == n_total:
             best_f1 = max(r["f1"] for r in results)
-            print(f"  {done}/{n_total} 完了  現在のベストF1={best_f1:.4f}")
+            logging.info(f"  {done}/{n_total} 完了  現在のベストF1={best_f1:.4f}")
 
     results.sort(key=lambda r: (r["f1"], r["recall"]), reverse=True)
     return results
@@ -262,12 +268,12 @@ def print_results(results: list[dict], top_n: int = 30) -> None:
         f"{'bonus':>6} {'min_r':>5} {'max_r':>5} "
         f"{'w_sc':>5} {'n_div':>6} {'w_div':>6} {'g_sig':>5}"
     )
-    print(header)
-    print("-" * len(header))
+    logging.info(header)
+    logging.info("-" * len(header))
 
     for r in results[:top_n]:
         err = r["mean_abs_error"] if r["mean_abs_error"] is not None else 0.0
-        print(
+        logging.info(
             f"{r['f1']:>6.3f} {r['precision']:>6.3f} {r['recall']:>6.3f} {err:>6.1f} "
             f"{r['bonus_shape']:>11} {r['rep_x_method']:>6} "
             f"{r['width_bonus']:>6.0f} {r['min_cw_ratio']:>5.2f} {r['max_cw_ratio']:>5.2f} "
@@ -277,24 +283,24 @@ def print_results(results: list[dict], top_n: int = 30) -> None:
 
 
 def print_grouped_best(results: list[dict]) -> None:
-    print("\n=== bonus_shape 別ベスト(train) ===")
+    logging.info("\n=== bonus_shape 別ベスト(train) ===")
     for shape in ["linear", "gaussian", "rect", "asymmetric"]:
         shape_results = [r for r in results if r["bonus_shape"] == shape]
         if shape_results:
             best = shape_results[0]
             err = best["mean_abs_error"] or 0.0
-            print(
+            logging.info(
                 f"{shape:>11}: F1={best['f1']:.3f}  P={best['precision']:.3f}  "
                 f"R={best['recall']:.3f}  err={err:.1f}px"
             )
 
-    print("\n=== rep_x_method 別ベスト(train) ===")
+    logging.info("\n=== rep_x_method 別ベスト(train) ===")
     for method in ["center", "mean", "median"]:
         method_results = [r for r in results if r["rep_x_method"] == method]
         if method_results:
             best = method_results[0]
             err = best["mean_abs_error"] or 0.0
-            print(
+            logging.info(
                 f"{method:>6}: F1={best['f1']:.3f}  P={best['precision']:.3f}  "
                 f"R={best['recall']:.3f}  err={err:.1f}px"
             )
@@ -324,26 +330,26 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.WARNING)
-
     evaluator_for_split = Evaluator()
     all_names = evaluator_for_split.all_image_names()
     train_names, test_names = split_train_test(all_names, args.test_ratio, args.seed)
 
-    print(
+    logging.info(
         f"全{len(all_names)}枚 -> train {len(train_names)}枚 / test {len(test_names)}枚"
     )
-    print(f"test画像: {test_names}\n")
+    logging.info(f"test画像: {test_names}\n")
 
     # --- train: グリッドサーチ ---
-    print("=== Train: グリッドサーチ実行 ===")
+    logging.info("=== Train: グリッドサーチ実行 ===")
     train_results = run_grid_search(image_names=train_names)
-    print(f"\nF1上位(train)を表示します。\n")
+    logging.info(f"\nF1上位(train)を表示します。\n")
     print_results(train_results, top_n=30)
     print_grouped_best(train_results)
 
     # --- test: train上位の組み合わせのみ再評価 ---
-    print(f"\n=== Test: trainでのF1上位{args.top_n_for_test}件をtestデータで再評価 ===")
+    logging.info(
+        f"\n=== Test: trainでのF1上位{args.top_n_for_test}件をtestデータで再評価 ==="
+    )
     evaluator_for_test = Evaluator()
     test_eval_rows: list[dict] = []
 
@@ -378,19 +384,19 @@ def main() -> None:
             }
         )
 
-    print(
+    logging.info(
         f"{'train_F1':>9} {'test_F1':>8} {'test_P':>7} {'test_R':>7} {'test_err':>9} "
         f"{'shape':>11} {'rep_x':>6} {'bonus':>6} {'min_r':>5} {'max_r':>5}"
     )
     for row in test_eval_rows:
-        print(
+        logging.info(
             f"{row['train_f1']:>9.3f} {row['test_f1']:>8.3f} {row['test_precision']:>7.3f} "
             f"{row['test_recall']:>7.3f} {row['test_err']:>9.1f} "
             f"{row['bonus_shape']:>11} {row['rep_x_method']:>6} "
             f"{row['width_bonus']:>6.0f} {row['min_cw_ratio']:>5.2f} {row['max_cw_ratio']:>5.2f}"
         )
 
-    print(
+    logging.info(
         "\n(train_F1とtest_F1の差が大きい設定は、trainデータへの過学習を"
         "疑った方が良いです。差が小さく、test_F1自体も高い設定を採用してください。)"
     )
