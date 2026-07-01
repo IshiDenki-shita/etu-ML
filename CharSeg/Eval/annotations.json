@@ -167,17 +167,6 @@
       525.0
     ]
   },
-  "gomachige.jpeg": {
-    "candidate_count": 31,
-    "selected_indices": [
-      0,
-      6
-    ],
-    "representative_xs": [
-      0.0,
-      171.0
-    ]
-  },
   "gyoza1.jpeg": {
     "candidate_count": 32,
     "selected_indices": [
@@ -1049,5 +1038,427 @@
       785.0,
       930.0
     ]
+  },
+  "gomachige.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      6,
+      11,
+      15,
+      19,
+      24,
+      30
+    ],
+    "representative_xs": [
+      0.0,
+      171.0,
+      319.0,
+      432.0,
+      551.0,
+      703.0,
+      873.0
+    ]
+  },
+  "amakara2.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      4,
+      8,
+      12,
+      15,
+      19,
+      22,
+      25,
+      30
+    ],
+    "representative_xs": [
+      0.0,
+      149.0,
+      307.0,
+      456.0,
+      572.0,
+      719.0,
+      827.0,
+      964.0,
+      1149.0
+    ]
+  },
+  "butakarubi3.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      7,
+      14,
+      18,
+      22,
+      26,
+      30
+    ],
+    "representative_xs": [
+      0.0,
+      217.0,
+      434.0,
+      558.0,
+      685.0,
+      801.0,
+      944.0
+    ]
+  },
+  "chikinan.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      4,
+      8,
+      11,
+      14,
+      17,
+      22,
+      27,
+      30
+    ],
+    "representative_xs": [
+      0.0,
+      158.0,
+      270.0,
+      368.0,
+      464.0,
+      598.0,
+      776.0,
+      913.0,
+      1047.0
+    ]
+  },
+  "gyoza6.jpeg": {
+    "candidate_count": 32,
+    "selected_indices": [
+      0,
+      8,
+      12,
+      18,
+      22,
+      27,
+      31
+    ],
+    "representative_xs": [
+      0.0,
+      160.0,
+      240.0,
+      360.0,
+      440.0,
+      540.0,
+      618.0
+    ]
+  },
+  "hiyashitan.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      6,
+      10,
+      14,
+      20,
+      24
+    ],
+    "representative_xs": [
+      0.0,
+      157.0,
+      260.0,
+      367.0,
+      528.0,
+      624.0
+    ]
+  },
+  "hiyashitan2.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      5,
+      9,
+      14,
+      20,
+      24
+    ],
+    "representative_xs": [
+      0.0,
+      160.0,
+      274.0,
+      406.0,
+      580.0,
+      696.0
+    ]
+  },
+  "hiyashitoritenkankitsu.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      2,
+      3,
+      6,
+      8,
+      12,
+      16,
+      19,
+      22,
+      24,
+      27,
+      30
+    ],
+    "representative_xs": [
+      0.0,
+      104.0,
+      176.0,
+      243.0,
+      386.0,
+      504.0,
+      659.0,
+      796.0,
+      922.0,
+      1003.0,
+      1091.0,
+      1227.0
+    ]
+  },
+  "karaage6.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      5,
+      11,
+      16,
+      21,
+      26,
+      30
+    ],
+    "representative_xs": [
+      0.0,
+      168.0,
+      366.0,
+      528.0,
+      700.0,
+      858.0,
+      1008.0
+    ]
+  },
+  "kararei2.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      5,
+      12,
+      17,
+      23
+    ],
+    "representative_xs": [
+      0.0,
+      145.0,
+      336.0,
+      484.0,
+      658.0
+    ]
+  },
+  "katsutama2.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      7,
+      15,
+      22,
+      29
+    ],
+    "representative_xs": [
+      0.0,
+      147.0,
+      315.0,
+      465.0,
+      640.0
+    ]
+  },
+  "mushidori3.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      4,
+      8,
+      13,
+      17,
+      20,
+      25,
+      30
+    ],
+    "representative_xs": [
+      0.0,
+      126.0,
+      222.0,
+      390.0,
+      507.0,
+      597.0,
+      751.0,
+      924.0
+    ]
+  },
+  "mushirori2.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      4,
+      7,
+      10,
+      13,
+      15,
+      18,
+      21
+    ],
+    "representative_xs": [
+      0.0,
+      148.0,
+      218.0,
+      370.0,
+      481.0,
+      555.0,
+      663.0,
+      773.0
+    ]
+  },
+  "negitoro2.jpeg": {
+    "candidate_count": 32,
+    "selected_indices": [
+      0,
+      7,
+      14,
+      18,
+      24,
+      31
+    ],
+    "representative_xs": [
+      0.0,
+      175.0,
+      358.0,
+      462.0,
+      600.0,
+      778.0
+    ]
+  },
+  "onsamo3.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      6,
+      11,
+      16,
+      18,
+      22,
+      26,
+      30
+    ],
+    "representative_xs": [
+      0.0,
+      204.0,
+      374.0,
+      543.0,
+      612.0,
+      748.0,
+      884.0,
+      1035.0
+    ]
+  },
+  "onsamo4.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      6,
+      11,
+      16,
+      18,
+      22,
+      26,
+      30
+    ],
+    "representative_xs": [
+      0.0,
+      204.0,
+      374.0,
+      543.0,
+      612.0,
+      748.0,
+      884.0,
+      1035.0
+    ]
+  },
+  "oroshikatsu.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      6,
+      10,
+      15,
+      21,
+      26,
+      30
+    ],
+    "representative_xs": [
+      0.0,
+      132.0,
+      220.0,
+      327.0,
+      448.0,
+      572.0,
+      677.0
+    ]
+  },
+  "oroshikatsu3.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      5,
+      11,
+      15,
+      19,
+      24,
+      30
+    ],
+    "representative_xs": [
+      0.0,
+      138.0,
+      292.0,
+      415.0,
+      513.0,
+      648.0,
+      813.0
+    ]
+  },
+  "samobibi2.jpeg": {
+    "candidate_count": 31,
+    "selected_indices": [
+      0,
+      3,
+      6,
+      9,
+      12,
+      17,
+      20,
+      22,
+      26,
+      30
+    ],
+    "representative_xs": [
+      0.0,
+      111.0,
+      208.0,
+      336.0,
+      458.0,
+      602.0,
+      720.0,
+      814.0,
+      963.0,
+      1115.0
+    ]
+  },
+  "shita7.jpeg": {
+    "candidate_count": 40,
+    "selected_indices": [],
+    "representative_xs": []
   }
 }
